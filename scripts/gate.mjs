@@ -1,5 +1,5 @@
 // Release gate, waivers and run-to-run delta for report.mjs.
-// Ideas: a gate that blocks release until effective failures = 0, waivers that need a
+// Ported from the author's own site-scanner tool: a gate that blocks release until effective failures = 0, waivers that need a
 // reason and an expiry, strict mode, and a delta panel (regressions / new / fixed).
 import fs from 'node:fs';
 import path from 'node:path';

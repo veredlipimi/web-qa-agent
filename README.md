@@ -72,7 +72,7 @@ See [`evals/README.md`](evals/README.md) for the LLM-graded behaviour cases.
 
 ## Credits
 
-Checklists and auth patterns adapted from my own guides (*Playwright for QA*, *Claude AI for QA Engineers*). The gate, waiver-expiry and delta ideas come from release-gate work I did on large-scale site migrations (concepts only, no code). Inspired by [Aswinellath/web_app_testing](https://github.com/Aswinellath/web_app_testing). This is an independent implementation, extended with coverage honesty, the field matrix, RTL, API/network checks and Hebrew reports. Shaped by feedback from QA practitioners on LinkedIn.
+Checklists and auth patterns adapted from my own guides (*Playwright for QA*, *Claude AI for QA Engineers*). The release gate, waiver expiry, run-to-run delta and redirect-map check come from my own site-scanner / redirect-QA tool, built for large-scale site migrations. Inspired by [Aswinellath/web_app_testing](https://github.com/Aswinellath/web_app_testing). This is an independent implementation, extended with coverage honesty, the field matrix, RTL, API/network checks and Hebrew reports. Shaped by feedback from QA practitioners on LinkedIn.
 
 MIT © Vered Li
 
