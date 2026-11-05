@@ -38,7 +38,7 @@ const CASES = {
   common: [['whitespace-only', '   ', 'reject-if-required'], ['empty', '', 'reject-if-required']],
   name: [['hebrew', 'ורד לי', 'accept'], ['apostrophe', "O'Brien", 'accept'], ['mixed-direction', 'Vered ורד', 'accept']],
   email: [['double-at', 'name@@example.com', 'reject'], ['no-at', 'plainaddress', 'reject'], ['plus-tag', 'qa+probe@example.com', 'accept'], ['il-domain', 'qa@example.co.il', 'accept']],
-  phone: [['letters', 'abcdefg', 'reject'], ['too-short', '05000', 'reject'], ['il-intl', '+972500000000', 'accept'], ['il-dash', '050-0000000', 'accept']],
+  phone: [['letters', 'abcdefghij', 'reject']  /* ≥9 chars so only the character class is under test */, ['too-short', '05000', 'reject'], ['il-intl', '+972500000000', 'accept'], ['il-dash', '050-0000000', 'accept']],
   text: [['hebrew', 'בדיקה', 'accept']],
   message: [['hebrew', 'שלום, זו הודעת בדיקה.', 'accept']],
 };

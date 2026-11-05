@@ -177,6 +177,16 @@ finding is the same root cause as an auto one, add `"supersedes": "<ruleId or ti
 Use `getByLabel` to find form fields: if a field can only be reached by placeholder or
 CSS, that is itself an accessibility gap.
 
+Add a `coverage` entry per journey to `findings.manual.json` (category `Exploratory`,
+status tested / not-tested / blocked with reason), so hands-on work shows in the coverage
+table too.
+
+**Reconcile contradictions.** If the field matrix says a case passed and your hands-on run
+says it failed (or the reverse), do not report both: vary one thing at a time (value
+length, character class, submit vs blur) until you know the cause, then report the cause
+once and note which tool was wrong. A tool that was wrong is itself worth a line in
+"Assumptions".
+
 If `references/rtl-checklist.md` applies (RTL detected or requested), walk it on at least
 the home page and every key journey page at mobile and desktop.
 
@@ -210,7 +220,9 @@ before delivering). Rules:
 node <skill>/scripts/report.mjs --run <run> --title "<site> QA report" [--lang he|en]
 ```
 
-Merges auto + manual findings, applies `references/severity.md`, and writes
+With `--lang he` the script renders automated findings in Hebrew itself — never write your
+own translation or post-processing scripts. Write manual findings directly in the report
+language. Merges auto + manual findings, applies `references/severity.md`, and writes
 `report.html`, `report.md`, `findings.csv`, `findings.json`. Before handing over, read
 `report.md` top to bottom and check: every finding has evidence; severities follow the
 rubric; nothing is a duplicate; "Not covered" lists anything skipped.

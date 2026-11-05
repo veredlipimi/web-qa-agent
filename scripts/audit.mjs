@@ -274,7 +274,7 @@ for (const vpName of vpNames) {
 
     cover('RTL/i18n', url, vpName, dom.rtlText ? st : 'n/a', dom.rtlText ? (partial || undefined) : 'No Hebrew/Arabic text on page');
     if (dom.rtlText) {
-      if (dom.rootDir !== 'rtl' && dom.rtlShare >= 0.8) add('seo-lang', { ...base, severity: 'Low', category: 'RTL/i18n',
+      if (dom.rootDir !== 'rtl' && dom.rtlShare >= 0.8) add('rtl-container-only', { ...base,
         title: 'RTL is set on a content container, not on <html>', steps: [`Open ${url}`, 'Inspect <html>'],
         expected: '<html lang="he" dir="rtl"> so browser UI, scrollbars and form controls follow RTL', actual: `html direction: ${dom.rootDir}; ${Math.round(dom.rtlShare * 100)}% of Hebrew blocks render RTL via a container` });
       else if (dom.rootDir !== 'rtl') add('rtl-dir-missing', { ...base, title: 'Hebrew/Arabic content but page direction is LTR',

@@ -111,7 +111,7 @@ const pages = {
       document.getElementById('bf').addEventListener('submit', e => { e.preventDefault();
         const n = document.getElementById('bname').value.trim(), p = document.getElementById('bphone').value.trim();
         document.getElementById('e-bname').textContent = n ? '' : 'נא למלא שם';
-        document.getElementById('e-bphone').textContent = /^[0-9+\-\s]{9,}$/.test(p) ? '' : 'נא למלא מספר טלפון תקין';
+        document.getElementById('e-bphone').textContent = /^[0-9+\\s-]{9,}$/.test(p) ? '' : 'נא למלא מספר טלפון תקין';
       });
     </script>` + foot,
 

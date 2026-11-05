@@ -12,6 +12,15 @@ hard the fix is. When torn between two levels, pick the higher one and say why i
 | **Low** | Polish, best practice or hardening. Few users notice. | Missing meta description; small tap targets on secondary links; missing CSP/Referrer-Policy; slow non-critical API call; version in `X-Powered-By` |
 | **Info** | Worth knowing; not a gap by itself. | No canonical URL; `noindex` on a staging site |
 
+## Missing features vs. broken features
+
+A feature that is absent (no checkout, no password reset, no search) is a gap only when
+something says it should exist: the app profile's journeys, a link or button that leads to
+it, the user's Phase 0 answers, or copy on the site promising it. If its absence might be
+by design (e.g. a catalogue site that sells by phone), do not rate it Critical — list it
+under "Assumptions" as an open question for the product owner, and rate it only once the
+answer is known.
+
 ## Adjusting automated defaults
 
 The scripts assign a default per rule (`scripts/lib.mjs` → `RULES`). During triage:

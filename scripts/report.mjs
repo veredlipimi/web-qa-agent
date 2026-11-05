@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs, need, readJson, writeJson, SEVERITY_ORDER } from './lib.mjs';
+import { localizeFinding, heString } from './i18n-he.mjs';
 
 const args = parseArgs();
 const run = need(args, 'run', 'run folder');
@@ -40,11 +41,13 @@ const sevLabel = s => (lang === 'he' ? `${SEV_HE[s]} · ${s}` : s);
 
 // ---- merge
 const raw = [
-  ...auto.findings.map(f => ({ ...f, source: 'auto' })),
-  ...(fields.findings || []).map(f => ({ ...f, source: 'auto' })),
+  ...auto.findings.map(f => ({ ...f, source: 'auto', originalTitle: f.title })),
+  ...(fields.findings || []).map(f => ({ ...f, source: 'auto', originalTitle: f.title })),
   ...(manual.findings || []).map(f => ({ ...f, source: 'manual' })),
 ];
-const matches = (f, m) => f.ruleId === m || (f.title || '').toLowerCase().includes(String(m).toLowerCase());
+const L = f => (lang === 'he' ? localizeFinding(f) : f);
+for (let i = 0; i < raw.length; i++) raw[i] = L(raw[i]);
+const matches = (f, m) => f.ruleId === m || (f.title || '').toLowerCase().includes(String(m).toLowerCase()) || (f.originalTitle || '').toLowerCase().includes(String(m).toLowerCase());
 const dismissed = [];
 const superseded = (manual.findings || []).map(m => m.supersedes).filter(Boolean);
 const kept = [];
@@ -80,7 +83,7 @@ const covRows = CATS.map(c => {
   const rows = coverage.filter(x => x.category === c && x.status !== 'n/a');
   return { category: c, tested: rows.filter(x => x.status === 'tested').length,
     notTested: rows.filter(x => x.status === 'not-tested').length, blocked: rows.filter(x => x.status === 'blocked').length,
-    reasons: [...new Set(rows.filter(x => x.status !== 'tested').map(x => x.reason).filter(Boolean))] };
+    reasons: [...new Set(rows.filter(x => x.status !== 'tested').map(x => lang === 'he' ? heString(x.reason) : x.reason).filter(Boolean))] };
 }).filter(r => r.tested + r.notTested + r.blocked > 0);
 const covTotal = covRows.reduce((a, r) => a + r.tested + r.notTested + r.blocked, 0);
 const covTested = covRows.reduce((a, r) => a + r.tested, 0);
@@ -89,7 +92,10 @@ const fullCoverage = covTotal > 0 && covTested === covTotal;
 const baseVerdict = counts.Critical ? T.v.stop : counts.High ? T.v.risk : T.v.ok;
 const verdict = fullCoverage || counts.Critical ? baseVerdict : `${baseVerdict} (${T.scoped} — ${T.coverage} ${covPct}%)`;
 const notCovered = [...(auto.notCovered || []), ...(fields.notCovered || []), ...(manual.notCovered || []),
-  ...((suiteResult?.notTestedList) || []).map(n => ({ page: n.test, reason: `Suite: ${n.reason}` }))];
+  ...((suiteResult?.notTestedList) || []).map(n => ({ page: n.test, reason: `Suite: ${n.reason}` }))]
+  .map(n => (lang === 'he' ? { ...n, reason: heString(n.reason) } : n));
+// One line per dismissed root cause, not per occurrence.
+const dismissedGrouped = Object.values(dismissed.reduce((a, d) => { const k = `${d.title}|${d.reason}`; (a[k] ||= { ...d, n: 0 }).n++; return a; }, {}));
 
 // ---- JSON + CSV
 const flat = gaps.map(g => ({
@@ -135,7 +141,7 @@ for (const g of gaps) {
 if (assumptions.length) { md.push(`## ${T.assumptions}`, ''); assumptions.forEach(a => md.push(`- ${a}`)); md.push(''); }
 md.push(`## ${T.notCovered}`, ''); if (!notCovered.length) md.push(`- ${T.none}`);
 notCovered.forEach(n => md.push(`- ${[n.page, n.viewport, n.reason].filter(Boolean).join(' — ')}`));
-if (dismissed.length) { md.push('', `## ${T.dismissed}`, ''); dismissed.forEach(d => md.push(`- ${d.title} — ${d.reason}`)); }
+if (dismissed.length) { md.push('', `## ${T.dismissed}`, ''); dismissedGrouped.forEach(d => md.push(`- ${d.title}${d.n > 1 ? ` (×${d.n})` : ''} — ${d.reason}`)); }
 fs.writeFileSync(path.join(run, 'report.md'), md.join('\n') + '\n');
 
 // ---- HTML (self-contained, light/dark, RTL when lang=he)
@@ -219,7 +225,7 @@ ${covRows.map(r => `<tr><td>${esc(r.category)}</td><td>${r.tested}</td><td class
 <section id="gaps">${gaps.map(gapHtml).join('') || `<p>${T.none}</p>`}</section>
 ${assumptions.length ? `<h2>${T.assumptions}</h2><ul class="plain">${assumptions.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
 <h2>${T.notCovered}</h2><ul class="plain">${notCovered.map(n => `<li>${esc([n.page, n.viewport, n.reason].filter(Boolean).join(' — '))}</li>`).join('') || `<li>${T.none}</li>`}</ul>
-${dismissed.length ? `<h2>${T.dismissed}</h2><ul class="plain">${dismissed.map(d => `<li>${esc(d.title)} — ${esc(d.reason)}</li>`).join('')}</ul>` : ''}
+${dismissed.length ? `<h2>${T.dismissed}</h2><ul class="plain">${dismissedGrouped.map(d => `<li>${esc(d.title)}${d.n > 1 ? ` (×${d.n})` : ''} — ${esc(d.reason)}</li>`).join('')}</ul>` : ''}
 </main>
 <script>
 document.querySelectorAll('.filters button').forEach(b => b.addEventListener('click', () => {

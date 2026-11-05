@@ -46,6 +46,15 @@ whether they can recover without reloading.
 - Browser back after a successful submit — does it resubmit or show stale data?
 - Open a deep link while logged out.
 
+## Search checks (do all of them when there is a search box)
+- Case: `lamp` vs `Lamp` vs `LAMP` must return the same results.
+- Hebrew: final letters (`שולחן`/`שולחנ`), with and without niqqud, singular vs plural
+  (`ספל` / `ספלים`), leading/trailing spaces, whitespace-only query.
+- Mixed: Hebrew + English, numbers, an exact product name copied from the page.
+- Empty result: a clear "no results" message, not a blank area.
+- The query echoed back on the page must render as text (the audit's reflection check
+  covers markup; you check the visible wording).
+
 ## Questions to keep asking
 - What happens if this is empty? Huge? Hebrew? Pasted?
 - What does the user see while waiting? When it fails?
