@@ -2,6 +2,8 @@
 // Phase 2 — Reconnaissance. Breadth-first crawl of same-origin pages as a real browser.
 // Usage: node crawl.mjs --url https://example.com --out qa-runs/x [--max-pages 25]
 //        [--include-subdomains a.example.com,b.example.com] [--storage-state auth.json]
+//        [--urls pages.txt] [--no-follow]   seed list (one URL or path per line); --no-follow = visit only those
+import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs, need, writeJson, launchBrowser, normalizeUrl, inScope, settle, HEBREW_OR_ARABIC } from './lib.mjs';
 
@@ -22,7 +24,10 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 
-const queue = [startUrl];
+const follow = !args['no-follow'];
+const seeds = args.urls ? fs.readFileSync(args.urls, 'utf8').split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'))
+  .map(u => normalizeUrl(u, startUrl)).filter(Boolean) : [];
+const queue = [...new Set(seeds.length && !follow ? seeds : [startUrl, ...seeds])];
 const seen = new Set(queue);
 const pages = [];
 const linkGraph = {}; // url -> [{href, text, from}]
@@ -83,7 +88,7 @@ while (queue.length && pages.length < maxPages) {
       const n = normalizeUrl(l.href, record.finalUrl);
       if (!n) continue;
       linkGraph[url].push({ href: n, text: l.text });
-      if (inScope(n, startUrl, extraHosts) && !seen.has(n) && !SKIP.test(n)) {
+      if (follow && inScope(n, startUrl, extraHosts) && !seen.has(n) && !SKIP.test(n)) {
         seen.add(n);
         queue.push(n);
       }
@@ -103,6 +108,7 @@ const sitemap = {
   crawledAt: new Date().toISOString(),
   maxPages,
   extraHosts,
+  seeded: seeds.length ? { count: seeds.length, follow } : null,
   rtlDetected: pages.some(p => p.hasRtlText || p.dir === 'rtl'),
   pages,
   notCrawled: queue.slice(0, 200),

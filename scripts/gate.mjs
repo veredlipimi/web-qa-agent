@@ -53,6 +53,7 @@ export function computeDelta(run, host, gaps) {
   const histDir = path.join(path.dirname(path.resolve(run)), 'history');
   const file = path.join(histDir, `${host.replace(/[^a-z0-9.-]/gi, '_')}.json`);
   const hist = readJson(file, { runs: [] });
+  hist.runs = (hist.runs || []).filter(r => r && r.fingerprints); // ignore files written by other tools
   const now = Object.fromEntries(gaps.map(g => [fingerprint(g), { id: g.id, severity: g.severity, title: g.title }]));
   const prev = hist.runs.filter(r => r.run !== path.resolve(run)).at(-1);
   const older = hist.runs.filter(r => r.run !== path.resolve(run)).slice(0, -1);

@@ -166,7 +166,19 @@ node <skill>/scripts/redirect-check.mjs --map <map.csv> --origin <origin> --out 
 ```
 
 Every old URL is classified PASS · WRONG-TARGET · WRONG-STATUS (302 where 301 was
-expected) · CHAIN · MISSING · ERROR. ERRORs are not-tested, never passes.
+expected) · CHAIN · MISSING · ERROR (plus LOOP and TARGET-BROKEN with CutoverGate).
+ERRORs are not-tested, never passes.
+
+If [CutoverGate](https://github.com/veredlipimi/cutovergate) is installed (`$CUTOVERGATE`,
+`~/cutovergate`), the script uses it as the engine automatically. The classification is the
+same, and the run also gets CutoverGate's exceptions (`--exceptions <file>`), its delta and
+its own redirect report (path in `findings.redirects.json` → `reports.html`). Mention that
+report in the final message. Excepted redirects are documented decisions: don't report
+them as gaps.
+
+If the user starts from CutoverGate (`cutovergate qa …`), the automated pass has already
+run on the destination pages. Its run folder has `targets.txt` and `claude-prompt.md`.
+Continue from Phase 4 in that folder, scoped to `targets.txt`, and don't re-crawl the whole site.
 
 ### Phase 4 — Field matrix, exploratory & edge cases
 

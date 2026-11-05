@@ -6,9 +6,18 @@
 //
 // Usage: node redirect-check.mjs --map redirects.csv --origin https://www.example.com --out run
 //        [--expect-status 301] [--concurrency 6] [--timeout-ms 15000]
+//        [--engine auto|builtin|/path/to/cutovergate] [--exceptions exceptions.json]
 // Map formats: CSV "from,to" (header optional) or JSON [{ "from": "/old", "to": "/new" }].
+//
+// Engine: when CutoverGate (https://github.com/veredlipimi/cutovergate) is installed, it does the
+// probing — same classification, exceptions with TTL, delta and its own HTML report — and its run is
+// converted to this file's format. Otherwise the small built-in prober below is used.
+// CutoverGate is looked up at --engine, $CUTOVERGATE, ~/cutovergate, ~/.claude/skills/cutovergate.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { parseArgs, need, writeJson } from './lib.mjs';
 
 const args = parseArgs();
@@ -18,6 +27,36 @@ const outDir = need(args, 'out');
 const expectStatus = args['expect-status'] ? Number(args['expect-status']) : 301;
 const conc = Number(args.concurrency || 6);
 const timeout = Number(args['timeout-ms'] || 15000);
+
+// ---- CutoverGate engine
+function findCutoverGate() {
+  if (args.engine === 'builtin') return null;
+  const c = [args.engine !== 'auto' && args.engine, process.env.CUTOVERGATE, path.join(os.homedir(), 'cutovergate'), path.join(os.homedir(), '.claude', 'skills', 'cutovergate')].filter(x => typeof x === 'string');
+  return c.find(p => fs.existsSync(path.join(p, 'bin', 'cutovergate.mjs')) && fs.existsSync(path.join(p, 'src', 'agent-bridge.mjs'))) || null;
+}
+const cg = findCutoverGate();
+if (cg) {
+  const cgOut = path.join(outDir, 'cutovergate');
+  const cgArgs = [path.join(cg, 'bin', 'cutovergate.mjs'), 'probe', '--map', mapFile, '--origin', origin, '--out', cgOut, '--json',
+    '--accept', String(expectStatus), '--concurrency', String(conc), '--timeout-ms', String(timeout), '--history', path.join(path.dirname(path.resolve(outDir)), 'history', 'redirects'),
+    ...(args.exceptions ? ['--exceptions', args.exceptions] : [])];
+  const out = await new Promise(resolve => {
+    const child = spawn(process.execPath, cgArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let so = '', se = '';
+    child.stdout.on('data', d => { so += d; }); child.stderr.on('data', d => { se += d; });
+    child.on('close', code => resolve({ code, so, se }));
+  });
+  let run = null;
+  try { run = JSON.parse(out.so); } catch {}
+  if (run?.results) {
+    const { toAgentFindings } = await import(pathToFileURL(path.join(cg, 'src', 'agent-bridge.mjs')).href);
+    const res = toAgentFindings(run);
+    writeJson(path.join(outDir, 'findings.redirects.json'), res);
+    console.log(`[redirects] engine=cutovergate gate=${res.gate.status} ${res.results.length} rules`, res.tally, `report: ${res.reports.html}`);
+    process.exit(res.findings.some(f => f.severity === 'High') ? 1 : 0);
+  }
+  console.error(`[redirects] CutoverGate at ${cg} did not produce a run (${(out.se || '').trim().split('\n').pop() || `exit ${out.code}`}) — using the built-in prober`);
+}
 
 const raw = fs.readFileSync(mapFile, 'utf8');
 let rules = [];
@@ -83,6 +122,6 @@ const findings = results.filter(r => r.result !== 'PASS').map(r => ({
 const tally = results.reduce((a, r) => (a[r.result] = (a[r.result] || 0) + 1, a), {});
 const coverage = [{ category: 'Redirects', page: origin, viewport: 'desktop', status: results.length ? 'tested' : 'not-tested', ...(results.length ? {} : { reason: 'Empty redirect map' }) }];
 const notCovered = tally.ERROR ? [{ reason: `${tally.ERROR} redirect(s) could not be probed (network errors) — not counted as passes` }] : [];
-writeJson(path.join(outDir, 'findings.redirects.json'), { origin, map: path.basename(mapFile), tally, results: results.map(({ hops, ...r }) => r), findings, coverage, notCovered });
-console.log(`[redirects] ${results.length} rules`, tally);
+writeJson(path.join(outDir, 'findings.redirects.json'), { engine: 'builtin', origin, map: path.basename(mapFile), tally, results: results.map(({ hops, ...r }) => r), findings, coverage, notCovered });
+console.log(`[redirects] engine=builtin ${results.length} rules`, tally);
 process.exit(findings.some(f => f.severity === 'High') ? 1 : 0);

@@ -16,7 +16,7 @@ Give it a URL. It asks its questions once, shows a test plan, then crawls, audit
 - **Plan gate.** One approval, then it runs to the end without stopping.
 - **Rules are enforced, not requested.** While the skill runs, a hook blocks edits outside `qa-runs/` (it reports, never fixes), state-changing HTTP calls to real hosts, attack and load tools, and `test.only`/`test.skip`. Rules without enforcement are wishes.
 - **Release gate + delta.** The report blocks on Critical/High by default, takes waivers that need a reason and an expiry (expired ones stop applying), has a strict mode, and exits 1 for CI with `--gate`. From the second run it shows **regressions**, **new** and **fixed** gaps.
-- **Migration QA.** `redirect-check.mjs` verifies a redirect map (old → new) on the live origin: PASS · WRONG-TARGET · WRONG-STATUS · CHAIN · MISSING · ERROR. Linked PDFs and other files are probed too.
+- **Migration QA, with [CutoverGate](https://github.com/veredlipimi/cutovergate).** `redirect-check.mjs` checks a redirect map (old → new) on the live origin: PASS · WRONG-TARGET · WRONG-STATUS · CHAIN · MISSING · ERROR. When CutoverGate is installed, it is used as the engine, which adds exceptions with expiry, delta and a gate report. Starting from the other side, `cutovergate qa` first gates the redirects and then runs this agent on the destination pages. Linked PDFs and other files are probed too.
 - **SSO-friendly login.** `save-auth.mjs` opens a browser, you log in by hand (SSO/MFA work), and the session is reused. No passwords in chat.
 - **Regression-ready suite.** Every identified gap gets a `test.fail()` test with its ID, so the run stays green while the gap exists and flags it once it is fixed.
 
@@ -65,7 +65,7 @@ You choose a depth (Quick / Standard / Deep), the environment (production read-o
 ## Test the agent
 
 ```bash
-node evals/regression-check.mjs     # 59 deterministic checks, ~2 min
+node evals/regression-check.mjs     # 59 deterministic checks (65 with CutoverGate installed), ~2 min
 ```
 
 See [`evals/README.md`](evals/README.md) for the LLM-graded behaviour cases.
@@ -92,7 +92,7 @@ MIT © Vered Li
 - **Evals לסוכן עצמו:** חנות דמו בעברית עם 20 פערים מתוכננים ו-13 בדיקות נגד false positives.
 - **אכיפה, לא בקשה:** hook שחוסם עריכה מחוץ ל-qa-runs, בקשות POST לאתרים אמיתיים, כלי תקיפה ועומס, ו-test.skip.
 - **שער שחרור ודלתא:** פטורים עם סיבה ותאריך תפוגה, מצב קפדני, ומההרצה השנייה: רגרסיות, פערים חדשים ופערים שתוקנו.
-- **QA להגירות אתרים:** בדיקת מפת הפניות (301) ובדיקת קבצים מקושרים (PDF וכו').
+- **QA להגירות אתרים:** בדיקת מפת הפניות (301) ובדיקת קבצים מקושרים (PDF וכו'). כשמותקן [CutoverGate](https://github.com/veredlipimi/cutovergate), הבדיקה רצה דרכו, ו-`cutovergate qa` מריץ את הסוכן על עמודי היעד אחרי שהשער עבר.
 - **דוח בעברית**, ו-`test.fail()` לכל פער שזוהה.
 
 **התקנה:**

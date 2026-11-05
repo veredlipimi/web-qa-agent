@@ -19,6 +19,7 @@ runs preflight → crawl → audit → field-matrix → report, and checks `expe
 | `coverage` (C01–C03) | Checks are marked *tested* where they ran |
 | `R01–R06` | Verdict, coverage %, deliverables, evidence on every gap, no `node_modules` |
 | `D-*` | Redirect map: PASS, WRONG-STATUS, WRONG-TARGET, MISSING, CHAIN each classified correctly |
+| `D-CG*` | Same map through the CutoverGate engine gives the same classification (runs when CutoverGate is found as a sibling folder or in `$CUTOVERGATE`) |
 | `G01–G05` | Gate: valid waiver applied, expired waiver ignored, waiver without reason rejected, FAIL with Critical, `--gate` exit code |
 | `H01–H03` | Delta across three runs: fixed, new, regression |
 | `K01` | Enforcement guard unit tests (`guard-check.mjs`, 12 cases) |

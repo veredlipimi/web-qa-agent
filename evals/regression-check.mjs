@@ -35,7 +35,11 @@ step('preflight', 'preflight.mjs', ['--url', base + '/', '--out', run]);
 step('crawl', 'crawl.mjs', ['--url', base + '/', '--out', run, '--max-pages', '15']);
 step('audit', 'audit.mjs', ['--sitemap', path.join(run, 'sitemap.json'), '--out', run, '--viewports', 'mobile,desktop']);
 step('field-matrix', 'field-matrix.mjs', ['--sitemap', path.join(run, 'sitemap.json'), '--out', run]);
-step('redirects', 'redirect-check.mjs', ['--map', path.join(here, 'demo-app', 'redirects.csv'), '--origin', base_url(), '--out', run]);
+step('redirects', 'redirect-check.mjs', ['--map', path.join(here, 'demo-app', 'redirects.csv'), '--origin', base_url(), '--out', run, '--engine', 'builtin']);
+// Same map through CutoverGate when it is available (sibling checkout or $CUTOVERGATE): both engines must agree.
+const cgPath = [process.env.CUTOVERGATE, path.join(here, '..', '..', 'cutovergate'), path.join(os.homedir(), 'cutovergate')].find(p => p && fs.existsSync(path.join(p, 'src', 'agent-bridge.mjs')));
+const runCg = path.join(baseDir, 'run-cg'); fs.mkdirSync(runCg);
+if (cgPath) step('redirects', 'redirect-check.mjs', ['--map', path.join(here, 'demo-app', 'redirects.csv'), '--origin', base_url(), '--out', runCg, '--engine', cgPath]);
 // Gate config with one valid waiver, one expired and one without a reason.
 fs.writeFileSync(path.join(run, 'qa-gate.json'), JSON.stringify({ blockOn: ['Critical', 'High'], waivers: [
   { match: 'broken-link', reason: 'Blog ships next sprint', expires: '2099-01-01' },
@@ -70,6 +74,12 @@ results.push({ id: 'R06', what: 'every gap has a screenshot or details', ok: out
 const red = JSON.parse(fs.readFileSync(path.join(run, 'findings.redirects.json'), 'utf8'));
 const byFrom = Object.fromEntries(red.results.map(r => [r.from, r.result]));
 for (const [from, want] of Object.entries(exp.redirects)) results.push({ id: `D-${from}`, what: `redirect ${from} = ${want} (got ${byFrom[from]})`, ok: byFrom[from] === want });
+if (cgPath) {
+  const cg = JSON.parse(fs.readFileSync(path.join(runCg, 'findings.redirects.json'), 'utf8'));
+  const cgBy = Object.fromEntries(cg.results.map(r => [r.from, r.result]));
+  results.push({ id: 'D-CG0', what: `CutoverGate engine used (${cgPath})`, ok: cg.engine === 'cutovergate' && fs.existsSync(cg.reports.html) });
+  for (const [from, want] of Object.entries(exp.redirects)) results.push({ id: `D-CG${from}`, what: `CutoverGate: ${from} = ${want} (got ${cgBy[from]})`, ok: cgBy[from] === want });
+} else console.log('  · CutoverGate not found — engine parity checks skipped (set $CUTOVERGATE to run them)');
 
 // ---- Gate & waivers
 results.push({ id: 'G01', what: 'valid waiver applied (broken-link)', ok: out.gate.waived.some(w => /blog/i.test(w.title)) });
