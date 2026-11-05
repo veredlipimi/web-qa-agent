@@ -97,9 +97,27 @@ const pages = {
   // Soft 404: says "not found" but returns 200.
   '/team': () => head('העמוד לא נמצא') + `<h1>העמוד לא נמצא</h1><p>מצטערים, העמוד שחיפשת לא קיים.</p>` + foot,
 
+  // CONTROL booking page (modelled on a real site): dir/lang on a wrapper, not <html>; the
+  // form validates in JS with trim() and shows errors in <span class="err">. The field matrix
+  // must NOT report whitespace/letters gaps here, and audit must NOT say "page is LTR".
+  '/booking': () => head('קביעת תור — סטודיו ברקת', { dir: null }).replace('<html lang="he">', '<html>') + `
+    <div dir="rtl" lang="he"><h1>קביעת תור</h1><p>השאירו פרטים ונחזור אליכם בהקדם.</p>
+    <form id="bf" novalidate>
+      <div><label for="bname">שם מלא</label><input id="bname" name="bname" autocomplete="name" required><span class="err" id="e-bname"></span></div>
+      <div><label for="bphone">טלפון</label><input id="bphone" name="bphone" type="tel" inputmode="tel" autocomplete="tel" required><span class="err" id="e-bphone"></span></div>
+      <button type="submit">שליחה</button>
+    </form></div>
+    <script>
+      document.getElementById('bf').addEventListener('submit', e => { e.preventDefault();
+        const n = document.getElementById('bname').value.trim(), p = document.getElementById('bphone').value.trim();
+        document.getElementById('e-bname').textContent = n ? '' : 'נא למלא שם';
+        document.getElementById('e-bphone').textContent = /^[0-9+\-\s]{9,}$/.test(p) ? '' : 'נא למלא מספר טלפון תקין';
+      });
+    </script>` + foot,
+
   // CONTROL policy page: correct RTL, labels, one h1, nothing to report except site-wide headers.
   '/policy': () => head('מדיניות פרטיות — סטודיו ברקת') + `<h1>מדיניות פרטיות</h1>
-    <p>אנחנו שומרים רק את המידע שנדרש לטיפול בהזמנה.</p><p><a href="/search-safe">חיפוש באתר</a></p>` + foot,
+    <p>אנחנו שומרים רק את המידע שנדרש לטיפול בהזמנה.</p><p><a href="/search-safe">חיפוש באתר</a> · <a href="/booking">קביעת תור</a></p>` + foot,
 };
 
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }

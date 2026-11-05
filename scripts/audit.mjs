@@ -223,6 +223,9 @@ for (const vpName of vpNames) {
       const bodyText = document.body?.innerText || '';
       const rtlText = RTL.test(bodyText);
       const rootDir = getComputedStyle(document.documentElement).direction;
+      // Share of Hebrew/Arabic text blocks that actually render RTL (dir may sit on a container).
+      const rtlBlocks = rtlText ? [...document.querySelectorAll('p, li, h1, h2, h3, label, td')].filter(el => vis(el) && RTL.test(el.innerText)) : [];
+      const rtlShare = rtlBlocks.length ? rtlBlocks.filter(el => getComputedStyle(el).direction === 'rtl').length / rtlBlocks.length : 0;
       // Hebrew/Arabic text blocks that render LTR or left-aligned.
       const misaligned = rtlText ? [...document.querySelectorAll('p, li, h1, h2, h3, h4, label, td, th, span, div')]
         .filter(el => el.children.length === 0 && vis(el)).filter(el => {
@@ -241,7 +244,7 @@ for (const vpName of vpNames) {
         viewportMeta: meta('viewport'), lang: document.documentElement.lang,
         h1: document.querySelectorAll('h1').length,
         canonical: document.querySelector('link[rel=canonical]')?.href || null,
-        rtlText, rootDir, misaligned, ltrInputs,
+        rtlText, rootDir, rtlShare, misaligned, ltrInputs,
       };
     }, { tapPx: THRESH.tapPx, rtlRe: HEBREW_OR_ARABIC.source });
 
@@ -271,7 +274,10 @@ for (const vpName of vpNames) {
 
     cover('RTL/i18n', url, vpName, dom.rtlText ? st : 'n/a', dom.rtlText ? (partial || undefined) : 'No Hebrew/Arabic text on page');
     if (dom.rtlText) {
-      if (dom.rootDir !== 'rtl') add('rtl-dir-missing', { ...base, title: 'Hebrew/Arabic content but page direction is LTR',
+      if (dom.rootDir !== 'rtl' && dom.rtlShare >= 0.8) add('seo-lang', { ...base, severity: 'Low', category: 'RTL/i18n',
+        title: 'RTL is set on a content container, not on <html>', steps: [`Open ${url}`, 'Inspect <html>'],
+        expected: '<html lang="he" dir="rtl"> so browser UI, scrollbars and form controls follow RTL', actual: `html direction: ${dom.rootDir}; ${Math.round(dom.rtlShare * 100)}% of Hebrew blocks render RTL via a container` });
+      else if (dom.rootDir !== 'rtl') add('rtl-dir-missing', { ...base, title: 'Hebrew/Arabic content but page direction is LTR',
         steps: [`Open ${url}`], expected: '<html dir="rtl"> (or dir on the content container)', actual: `direction: ${dom.rootDir}` });
       if (dom.misaligned.length) add('rtl-text-align', { ...base, title: 'Right-to-left text rendered left-aligned / LTR',
         steps: [`Open ${url}`, 'Look at the listed text blocks'], expected: 'RTL text aligned right with direction: rtl',

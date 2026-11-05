@@ -119,7 +119,7 @@ for (const { page: url, form, fields } of forms.slice(0, maxForms)) {
         }
         await el.fill(value);
         await el.blur();
-        const errorsBefore = await visibleErrors(page);
+        const errorsBefore = await visibleErrors(page, sel, form.index);
         const submit = formLoc.locator('button:not([type=button]):not([type=reset]), input[type=submit]').first();
         if (await submit.count()) await submit.click({ timeout: 3000 }).catch(() => {});
         await page.waitForTimeout(500);
@@ -127,9 +127,14 @@ for (const { page: url, form, fields } of forms.slice(0, maxForms)) {
           valid: node.checkValidity(), valueLength: node.value.length,
           ariaInvalid: node.getAttribute('aria-invalid') === 'true', message: node.validationMessage,
         }));
-        const errorsAfter = await visibleErrors(page);
+        const errorsAfter = await visibleErrors(page, sel, form.index);
         const submitted = await page.evaluate(() => window.__qaSubmitted || 0);
-        obs.uiError = errorsAfter > errorsBefore || obs.ariaInvalid;
+        const nearNew = errorsAfter.near && errorsAfter.near !== errorsBefore.near;
+        const fieldKey = [f.name, f.id].filter(Boolean);
+        const globalNew = errorsAfter.global !== errorsBefore.global && errorsAfter.global.length > 0
+          && (fieldKey.some(k => errorsAfter.global.includes(k)) || !fields.some(o => o !== f && [o.name, o.id].filter(Boolean).some(k => errorsAfter.global.includes(k))));
+        obs.uiError = !!(nearNew || globalNew || obs.ariaInvalid);
+        if (obs.uiError) obs.errorText = (nearNew ? errorsAfter.near : errorsAfter.global).slice(0, 120);
         obs.rejected = !obs.valid || obs.uiError;
         obs.submitAttempted = submitted > 0 && obs.valid;
         Object.assign(cell, { observed: obs });
@@ -180,8 +185,26 @@ writeJson(path.join(outDir, 'findings.fields.json'), { findings, coverage, notCo
 const tally = matrix.reduce((a, c) => (a[c.result] = (a[c.result] || 0) + 1, a), {});
 console.log(`[fields] ${forms.slice(0, maxForms).length} form(s), ${matrix.length} cells`, tally, `→ ${findings.length} findings`);
 
-async function visibleErrors(page) {
-  return page.evaluate(() => [...document.querySelectorAll('[role=alert], .error, .invalid-feedback, [class*=error i], [aria-live]')]
-    .filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && e.innerText.trim().length > 0; }).length);
+// Error signal for one field: text of known error containers anywhere + text near the field
+// (its wrapper, aria-describedby targets, following siblings). Compared before/after submit,
+// so site-specific error markup (e.g. <span class="err">) is detected without knowing it.
+async function visibleErrors(page, sel, formIndex) {
+  return page.evaluate(({ sel, formIndex }) => {
+    const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    const text = e => (e && vis(e) ? e.innerText.trim() : '');
+    const global = [...document.querySelectorAll('[role=alert], [aria-live], .invalid-feedback, [class*=error i], [class*=err i], [id*=error i], [id*=err i]')]
+      .map(text).filter(Boolean).join(' | ');
+    const form = document.querySelectorAll('form')[formIndex];
+    const el = form && sel ? form.querySelector(sel) : null;
+    let near = '';
+    if (el) {
+      const ids = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+      near += ids.map(id => text(document.getElementById(id))).join(' ');
+      for (let n = el.nextElementSibling, i = 0; n && i < 3; n = n.nextElementSibling, i++) if (n.tagName !== 'INPUT' && n.tagName !== 'LABEL') near += ' ' + text(n);
+      const wrap = el.closest('div, fieldset, p, li');
+      if (wrap && wrap !== form) near += ' ' + [...wrap.children].filter(c => c !== el && c.tagName !== 'LABEL' && !c.contains(el)).map(text).join(' ');
+    }
+    return { global, near: near.trim() };
+  }, { sel, formIndex });
 }
 function CSSesc(s) { return String(s).replace(/([^a-zA-Z0-9_-])/g, '\\$1'); }

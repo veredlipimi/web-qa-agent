@@ -31,7 +31,11 @@
     { "id": "N06", "rule": "field-plus-tag",      "why": "qa+probe@example.com is a valid email" },
     { "id": "N07", "rule": "field-type",          "title": "אימייל", "why": "Email already uses type=email" },
     { "id": "N08", "rule": "broken-image",        "why": "All images load" },
-    { "id": "N09", "rule": "field-no-label",      "title": "אימייל", "why": "Email has a proper label" }
+    { "id": "N09", "rule": "field-no-label",      "title": "אימייל", "why": "Email has a proper label" },
+    { "id": "N10", "rule": "rtl-dir-missing",     "page": "/booking",  "why": "dir=rtl on a wrapper is RTL, not LTR (real-site false positive)" },
+    { "id": "N11", "rule": "field-whitespace-only", "page": "/booking", "why": "JS trim() validation shows error in span.err (real-site false positive)" },
+    { "id": "N12", "rule": "field-letters",       "page": "/booking",  "why": "JS rejects letters in phone with span.err" },
+    { "id": "N13", "rule": "field-too-short",     "page": "/booking",  "why": "JS rejects short phone with span.err" }
   ],
   "coverage": [
     { "id": "C01", "category": "RTL/i18n", "status": "tested", "page": "/about" },
