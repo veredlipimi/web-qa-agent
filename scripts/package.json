@@ -1,0 +1,12 @@
+{
+  "name": "web-qa-agent-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Crawl, audit and report scripts for the web-qa-agent skill",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "playwright": "^1.48.0"
+  }
+}

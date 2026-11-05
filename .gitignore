@@ -1,0 +1,10 @@
+node_modules/
+package-lock.json
+qa-runs/
+test-results/
+playwright-report/
+results.json
+.env
+auth/
+*.har
+.DS_Store
