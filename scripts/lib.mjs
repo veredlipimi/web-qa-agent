@@ -148,6 +148,7 @@ export const RULES = {
   'sec-no-https':         { category: 'Security',      severity: 'High' },
   'soft-404':             { category: 'Functional',    severity: 'Medium' },
   'sec-reflected-input':  { category: 'Security',      severity: 'High' },
+  'broken-file':          { category: 'Functional',    severity: 'High' },
   'rtl-container-only':   { category: 'RTL/i18n',      severity: 'Low' },
   'rtl-dir-missing':      { category: 'RTL/i18n',      severity: 'Medium' },
   'rtl-text-align':       { category: 'RTL/i18n',      severity: 'Low' },

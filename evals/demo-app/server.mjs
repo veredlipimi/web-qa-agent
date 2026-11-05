@@ -117,7 +117,7 @@ const pages = {
 
   // CONTROL policy page: correct RTL, labels, one h1, nothing to report except site-wide headers.
   '/policy': () => head('מדיניות פרטיות — סטודיו ברקת') + `<h1>מדיניות פרטיות</h1>
-    <p>אנחנו שומרים רק את המידע שנדרש לטיפול בהזמנה.</p><p><a href="/search-safe">חיפוש באתר</a> · <a href="/booking">קביעת תור</a></p>` + foot,
+    <p>אנחנו שומרים רק את המידע שנדרש לטיפול בהזמנה.</p><p><a href="/search-safe">חיפוש באתר</a> · <a href="/booking">קביעת תור</a> · <a href="/files/price-list.pdf">מחירון (PDF)</a> · <a href="/files/terms.pdf">תקנון (PDF)</a></p>` + foot,
 };
 
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -128,6 +128,12 @@ const server = http.createServer((req, res) => {
   // Session cookie without HttpOnly (gap) + version disclosure; no CSP / XFO / nosniff / Referrer-Policy.
   const baseHeaders = { 'x-powered-by': 'Express 4.17.1', 'set-cookie': `sessionid=${sid}; Path=/; SameSite=Lax` };
 
+  // Redirects for the redirect-map eval (map: redirects.csv)
+  const R = { '/old-about': [301, '/about'], '/old-contact': [302, '/contact'], '/old-shop': [301, '/products'],
+    '/old-policy': [301, '/old-policy-2'], '/old-policy-2': [301, '/policy'] };
+  if (R[u.pathname]) { res.writeHead(R[u.pathname][0], { ...baseHeaders, location: R[u.pathname][1] }); return res.end(); }
+  // Linked files: one real PDF (control), one missing
+  if (u.pathname === '/files/price-list.pdf') { res.writeHead(200, { 'content-type': 'application/pdf' }); return res.end('%PDF-1.4\n%demo\n'); }
   // Login wall for coverage-honesty: account pages redirect to /login.
   if (u.pathname.startsWith('/account')) { res.writeHead(302, { ...baseHeaders, location: `/login?next=${encodeURIComponent(u.pathname)}` }); return res.end(); }
   if (u.pathname === '/login') { res.writeHead(200, { ...baseHeaders, 'content-type': 'text/html; charset=utf-8' });

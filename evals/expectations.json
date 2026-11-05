@@ -20,7 +20,8 @@
     { "id": "F01", "rule": "field-whitespace-only", "page": "/contact", "title": "שם מלא", "what": "Required name accepts spaces only" },
     { "id": "F02", "rule": "field-hebrew",        "page": "/contact",   "title": "שם מלא", "what": "Name rejects a Hebrew name" },
     { "id": "F03", "rule": "field-type",          "page": "/contact",   "title": "טלפון", "what": "Phone uses type=text" },
-    { "id": "F04", "rule": "field-il-intl",       "page": "/contact",   "title": "טלפון", "what": "Phone rejects +972 format" }
+    { "id": "F04", "rule": "field-il-intl",       "page": "/contact",   "title": "טלפון", "what": "Phone rejects +972 format" },
+    { "id": "E17", "rule": "broken-file",         "title": "terms.pdf", "what": "Linked PDF returns 404" }
   ],
   "notFind": [
     { "id": "N01", "rule": "sec-reflected-input", "page": "/search-safe", "why": "Escaped search must not be flagged" },
@@ -35,7 +36,8 @@
     { "id": "N10", "rule": "rtl-dir-missing",     "page": "/booking",  "why": "dir=rtl on a wrapper is RTL, not LTR (real-site false positive)" },
     { "id": "N11", "rule": "field-whitespace-only", "page": "/booking", "why": "JS trim() validation shows error in span.err (real-site false positive)" },
     { "id": "N12", "rule": "field-letters",       "page": "/booking",  "why": "JS rejects letters in phone with span.err" },
-    { "id": "N13", "rule": "field-too-short",     "page": "/booking",  "why": "JS rejects short phone with span.err" }
+    { "id": "N13", "rule": "field-too-short",     "page": "/booking",  "why": "JS rejects short phone with span.err" },
+    { "id": "N14", "rule": "broken-file",         "title": "price-list.pdf", "why": "Existing PDF must not be flagged" }
   ],
   "coverage": [
     { "id": "C01", "category": "RTL/i18n", "status": "tested", "page": "/about" },
@@ -43,6 +45,7 @@
     { "id": "C03", "category": "Accessibility", "status": "tested", "page": "/products" },
     { "id": "C04", "category": "Accessibility", "status": "blocked", "page": "/account/orders", "why": "Login wall must be reported as blocked, not audited as the login page" }
   ],
+  "redirects": { "/old-about": "PASS", "/old-contact": "WRONG-STATUS", "/old-shop": "WRONG-TARGET", "/old-team": "MISSING", "/old-policy": "CHAIN" },
   "report": {
     "verdictContains": "Not ready",
     "minCoveragePercent": 60

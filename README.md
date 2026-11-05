@@ -12,8 +12,12 @@ Give it a URL. It asks its questions once, shows a test plan, then crawls, audit
 - **Field integrity matrix.** Every form field is checked for type, length and format, then filled with edge values: whitespace-only, Hebrew and mixed-direction names, Israeli phone formats, malformed emails, maxlength+1. It records whether the UI rejects what it should and accepts what it should. Nothing is ever submitted: non-GET requests are blocked and native submission is prevented.
 - **RTL / Hebrew first.** `dir`, alignment and input direction are checked automatically, with a full manual checklist for mirroring, bidi text, formats and microcopy.
 - **API / network.** 5xx and 4xx responses, failed, slow and duplicate calls, plus fault injection in exploratory runs (500, slow network, offline, expired session).
-- **Evals for the agent itself.** A Hebrew demo storefront with 20 planted gaps and 13 false-positive controls, including ones taken from a real site. `node evals/regression-check.mjs` must stay green after every change.
+- **Evals for the agent itself.** A Hebrew demo storefront with planted gaps, redirect rules, gate/waiver and delta scenarios, and 14 false-positive controls, including ones taken from a real site. `node evals/regression-check.mjs` must stay green after every change.
 - **Plan gate.** One approval, then it runs to the end without stopping.
+- **Rules are enforced, not requested.** While the skill runs, a hook blocks edits outside `qa-runs/` (it reports, never fixes), state-changing HTTP calls to real hosts, attack and load tools, and `test.only`/`test.skip`. Rules without enforcement are wishes.
+- **Release gate + delta.** The report blocks on Critical/High by default, takes waivers that need a reason and an expiry (expired ones stop applying), has a strict mode, and exits 1 for CI with `--gate`. From the second run it shows **regressions**, **new** and **fixed** gaps.
+- **Migration QA.** `redirect-check.mjs` verifies a redirect map (old → new) on the live origin: PASS · WRONG-TARGET · WRONG-STATUS · CHAIN · MISSING · ERROR. Linked PDFs and other files are probed too.
+- **SSO-friendly login.** `save-auth.mjs` opens a browser, you log in by hand (SSO/MFA work), and the session is reused. No passwords in chat.
 - **Regression-ready suite.** Every identified gap gets a `test.fail()` test with its ID, so the run stays green while the gap exists and flags it once it is fixed.
 
 It also covers accessibility (axe-core, WCAG 2.1 AA), performance (LCP, CLS, TTFB, weight), responsive layout, soft 404s, SEO basics and passive security: headers, cookie flags, mixed content, exposed files, and one inert reflection marker.
@@ -61,14 +65,14 @@ You choose a depth (Quick / Standard / Deep), the environment (production read-o
 ## Test the agent
 
 ```bash
-node evals/regression-check.mjs     # 43 deterministic checks, ~2 min
+node evals/regression-check.mjs     # 59 deterministic checks, ~2 min
 ```
 
 See [`evals/README.md`](evals/README.md) for the LLM-graded behaviour cases.
 
 ## Credits
 
-Inspired by [Aswinellath/web_app_testing](https://github.com/Aswinellath/web_app_testing). This is an independent implementation, extended with coverage honesty, the field matrix, RTL, API/network checks and Hebrew reports. Shaped by feedback from QA practitioners on LinkedIn.
+Checklists and auth patterns adapted from my own guides (*Playwright for QA*, *Claude AI for QA Engineers*). The gate, waiver-expiry and delta ideas come from release-gate work I did on large-scale site migrations (concepts only, no code). Inspired by [Aswinellath/web_app_testing](https://github.com/Aswinellath/web_app_testing). This is an independent implementation, extended with coverage honesty, the field matrix, RTL, API/network checks and Hebrew reports. Shaped by feedback from QA practitioners on LinkedIn.
 
 MIT © Vered Li
 
@@ -86,6 +90,9 @@ MIT © Vered Li
 - **RTL ועברית:** בדיקות אוטומטיות של dir, יישור וכיוון שדות קלט, וצ׳קליסט ידני מלא.
 - **API ורשת:** קריאות שנכשלות, איטיות או כפולות, והזרקת תקלות.
 - **Evals לסוכן עצמו:** חנות דמו בעברית עם 20 פערים מתוכננים ו-13 בדיקות נגד false positives.
+- **אכיפה, לא בקשה:** hook שחוסם עריכה מחוץ ל-qa-runs, בקשות POST לאתרים אמיתיים, כלי תקיפה ועומס, ו-test.skip.
+- **שער שחרור ודלתא:** פטורים עם סיבה ותאריך תפוגה, מצב קפדני, ומההרצה השנייה: רגרסיות, פערים חדשים ופערים שתוקנו.
+- **QA להגירות אתרים:** בדיקת מפת הפניות (301) ובדיקת קבצים מקושרים (PDF וכו').
 - **דוח בעברית**, ו-`test.fail()` לכל פער שזוהה.
 
 **התקנה:**

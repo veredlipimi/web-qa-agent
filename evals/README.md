@@ -18,6 +18,10 @@ runs preflight → crawl → audit → field-matrix → report, and checks `expe
 | `notFind` (N01–N09) | **False-positive guards.** Control pages that are correct (`/policy`, `/search-safe`, the labelled email field, valid `qa+probe@` email) must stay clean |
 | `coverage` (C01–C03) | Checks are marked *tested* where they ran |
 | `R01–R06` | Verdict, coverage %, deliverables, evidence on every gap, no `node_modules` |
+| `D-*` | Redirect map: PASS, WRONG-STATUS, WRONG-TARGET, MISSING, CHAIN each classified correctly |
+| `G01–G05` | Gate: valid waiver applied, expired waiver ignored, waiver without reason rejected, FAIL with Critical, `--gate` exit code |
+| `H01–H03` | Delta across three runs: fixed, new, regression |
+| `K01` | Enforcement guard unit tests (`guard-check.mjs`, 12 cases) |
 
 When you add a check: plant a gap in `demo-app/server.mjs`, add a `find` line, **and**
 a correct control with a `notFind` line. A check without a control will drift into noise.

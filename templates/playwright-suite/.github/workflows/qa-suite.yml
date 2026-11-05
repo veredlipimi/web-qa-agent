@@ -1,0 +1,20 @@
+# Runs the generated suite on every push / PR, and uploads the report even on failure.
+name: qa-suite
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci || npm install
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --project=desktop --project=mobile
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+          QA_USER: ${{ secrets.QA_USER }}
+          QA_PASS: ${{ secrets.QA_PASS }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: playwright-report, path: playwright-report/, retention-days: 14 }

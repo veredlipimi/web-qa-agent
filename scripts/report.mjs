@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs, need, readJson, writeJson, SEVERITY_ORDER } from './lib.mjs';
 import { localizeFinding, heString } from './i18n-he.mjs';
+import { loadGateConfig, evaluateGate, computeDelta } from './gate.mjs';
 
 const args = parseArgs();
 const run = need(args, 'run', 'run folder');
@@ -14,6 +15,8 @@ const sitemap = readJson(path.join(run, 'sitemap.json'), { pages: [], startUrl: 
 const auto = readJson(path.join(run, 'findings.auto.json'), { findings: [], notCovered: [], viewports: [] });
 const manual = readJson(path.join(run, 'findings.manual.json'), { findings: [] });
 const fields = readJson(path.join(run, 'findings.fields.json'), { findings: [], coverage: [], notCovered: [] });
+const redirects = readJson(path.join(run, 'findings.redirects.json'), { findings: [], coverage: [], notCovered: [] });
+for (const k of ['findings', 'coverage', 'notCovered']) fields[k] = [...(fields[k] || []), ...(redirects[k] || [])];
 const triage = readJson(path.join(run, 'triage.json'), { dismiss: [], severity: [] });
 const assumptions = readJson(path.join(run, 'assumptions.json'), []);
 const suiteResult = readJson(path.join(run, 'suite-result.json'), null);
@@ -27,14 +30,16 @@ const T = {
     pages: 'pages', viewports: 'viewports', manual: 'exploratory', auto: 'automated', suite: 'Automation suite',
     v: { stop: 'Not ready to ship — critical gaps identified', risk: 'Ship only with the High gaps accepted or fixed', ok: 'No blocking gaps identified' },
     affected: 'Affected', none: 'None', byCat: 'By category', reason: 'Reason', fix: 'Suggested remediation (for the dev team)', verify: 'needs verification',
-    coverage: 'Coverage', tested: 'Tested', notTested: 'Not tested', blocked: 'Blocked', scoped: 'in the tested scope only', covNote: 'A clean result covers only what was tested. Not-tested and blocked checks are not passes.' },
+    coverage: 'Coverage', tested: 'Tested', notTested: 'Not tested', blocked: 'Blocked', scoped: 'in the tested scope only', covNote: 'A clean result covers only what was tested. Not-tested and blocked checks are not passes.',
+    gate: 'Release gate', waived: 'waived', delta: 'Since the previous run', regressions: 'Regressions (were fixed, failing again)', added: 'New gaps', fixed: 'Fixed', expiredW: 'Expired waivers (no longer applied)', strictB: 'Strict mode: categories with untested checks' },
   he: { summary: 'תקציר', verdict: 'שורה תחתונה', findings: 'פערים שזוהו', sev: 'חומרה', cat: 'קטגוריה',
     where: 'איפה', steps: 'צעדים לשחזור', expected: 'צפוי', actual: 'בפועל', evidence: 'ראיות',
     notCovered: 'לא נבדק', dismissed: 'נפסל בטריאז׳', assumptions: 'הנחות', scope: 'היקף',
     pages: 'עמודים', viewports: 'רזולוציות', manual: 'חקירתי', auto: 'אוטומטי', suite: 'סוויטת אוטומציה',
     v: { stop: 'לא מוכן לעלייה — זוהו פערים קריטיים', risk: 'לעלות רק אם פערי ה-High תוקנו או התקבלו', ok: 'לא זוהו פערים חוסמים' },
     affected: 'מופעים', none: 'אין', byCat: 'לפי קטגוריה', reason: 'סיבה', fix: 'המלצה לתיקון (לצוות הפיתוח)', verify: 'דורש אימות',
-    coverage: 'כיסוי', tested: 'נבדק', notTested: 'לא נבדק', blocked: 'חסום', scoped: 'בטווח שנבדק בלבד', covNote: 'תוצאה נקייה מתייחסת רק למה שנבדק. בדיקות שלא רצו או נחסמו אינן הצלחה.' },
+    coverage: 'כיסוי', tested: 'נבדק', notTested: 'לא נבדק', blocked: 'חסום', scoped: 'בטווח שנבדק בלבד', covNote: 'תוצאה נקייה מתייחסת רק למה שנבדק. בדיקות שלא רצו או נחסמו אינן הצלחה.',
+    gate: 'שער שחרור', waived: 'פטור', delta: 'מאז ההרצה הקודמת', regressions: 'רגרסיות (תוקנו וחזרו)', added: 'פערים חדשים', fixed: 'תוקנו', expiredW: 'פטורים שפג תוקפם (לא חלים)', strictB: 'מצב קפדני: קטגוריות עם בדיקות שלא רצו' },
 }[lang];
 const SEV_HE = { Critical: 'קריטי', High: 'גבוה', Medium: 'בינוני', Low: 'נמוך', Info: 'מידע' };
 const sevLabel = s => (lang === 'he' ? `${SEV_HE[s]} · ${s}` : s);
@@ -78,7 +83,7 @@ gaps.forEach(g => { if (!(g.source === 'manual' && g.id)) g.id = `QA-${String(++
 const counts = Object.fromEntries(SEVERITY_ORDER.map(s => [s, gaps.filter(g => g.severity === s).length]));
 const byCat = gaps.reduce((a, g) => (a[g.category] = (a[g.category] || 0) + 1, a), {});
 const coverage = [...(auto.coverage || []), ...(fields.coverage || []), ...(manual.coverage || [])];
-const CATS = ['Functional', 'Forms', 'API/Network', 'Accessibility', 'Performance', 'Responsive', 'RTL/i18n', 'SEO', 'Security', 'Exploratory'];
+const CATS = ['Functional', 'Forms', 'Redirects', 'API/Network', 'Accessibility', 'Performance', 'Responsive', 'RTL/i18n', 'SEO', 'Security', 'Exploratory'];
 const covRows = CATS.map(c => {
   const rows = coverage.filter(x => x.category === c && x.status !== 'n/a');
   return { category: c, tested: rows.filter(x => x.status === 'tested').length,
@@ -90,6 +95,9 @@ const covTested = covRows.reduce((a, r) => a + r.tested, 0);
 const covPct = covTotal ? Math.round((covTested / covTotal) * 100) : 0;
 const fullCoverage = covTotal > 0 && covTested === covTotal;
 const baseVerdict = counts.Critical ? T.v.stop : counts.High ? T.v.risk : T.v.ok;
+const gateCfg = loadGateConfig(run);
+const gate = evaluateGate(gaps, covRows, gateCfg);
+const delta = computeDelta(run, safeHost(sitemap.startUrl), gaps);
 const verdict = fullCoverage || counts.Critical ? baseVerdict : `${baseVerdict} (${T.scoped} — ${T.coverage} ${covPct}%)`;
 const notCovered = [...(auto.notCovered || []), ...(fields.notCovered || []), ...(manual.notCovered || []),
   ...((suiteResult?.notTestedList) || []).map(n => ({ page: n.test, reason: `Suite: ${n.reason}` }))]
@@ -106,7 +114,7 @@ const flat = gaps.map(g => ({
   screenshot: g.occurrences.find(o => o.screenshot)?.screenshot || '', details: g.evidence?.details || '',
   confidence: g.confidence || 'confirmed', remediation: g.remediation || '',
 }));
-writeJson(path.join(run, 'findings.json'), { title, generatedAt: new Date().toISOString(), verdict, counts, coverage: { percent: covPct, tested: covTested, total: covTotal, byCategory: covRows }, gaps, dismissed, notCovered, assumptions });
+writeJson(path.join(run, 'findings.json'), { title, generatedAt: new Date().toISOString(), verdict, counts, coverage: { percent: covPct, tested: covTested, total: covTotal, byCategory: covRows }, gate, delta, gaps, dismissed, notCovered, assumptions });
 const csvCell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
 const cols = Object.keys(flat[0] || { id: '', severity: '', category: '', title: '' });
 fs.writeFileSync(path.join(run, 'findings.csv'), '﻿' + [cols.join(','), ...flat.map(r => cols.map(c => csvCell(r[c])).join(','))].join('\n'));
@@ -114,6 +122,14 @@ fs.writeFileSync(path.join(run, 'findings.csv'), '﻿' + [cols.join(','), ...fla
 // ---- Markdown
 const md = [];
 md.push(`# ${title}`, '', `**${T.verdict}:** ${verdict}`, '');
+md.push(`**${T.gate}:** ${gate.status === 'PASS' ? '✅ PASS' : '⛔ FAIL'} — blocks on ${gate.blockOn.join('/')}${gate.strict ? ' + strict' : ''}${gate.blocking.length ? ` · ${gate.blocking.map(b => b.id).join(', ')}` : ''}${gate.waived.length ? ` · ${T.waived}: ${gate.waived.map(w => w.id).join(', ')}` : ''}`, '');
+if (gate.strictBlocks.length) md.push(`${T.strictB}: ${gate.strictBlocks.map(b => b.category).join(', ')}`, '');
+if (gate.expiredWaivers.length) md.push(`${T.expiredW}: ${gate.expiredWaivers.map(w => `${w.match} (${w.expires})`).join(', ')}`, '');
+if (delta) {
+  md.push(`## ${T.delta}`, '');
+  const L = (arr) => arr.length ? arr.map(g => `${g.id} ${g.title}`).join('; ') : T.none;
+  md.push(`- 🔴 ${T.regressions}: ${L(delta.regressions)}`, `- 🆕 ${T.added}: ${L(delta.added)}`, `- ✅ ${T.fixed}: ${L(delta.fixed)}`, '');
+}
 md.push(`## ${T.summary}`, '');
 if (profile?.purpose) md.push(`- ${profile.purpose}`);
 md.push(`- ${T.scope}: ${sitemap.startUrl} — ${sitemap.pages.length} ${T.pages}, ${T.viewports}: ${(auto.viewports || []).join(', ')}`);
@@ -151,7 +167,7 @@ const gapHtml = g => `
 <article class="gap" data-sev="${g.severity}" data-cat="${esc(g.category)}">
   <header>
     <span class="pill ${sevClass(g.severity)}">${esc(sevLabel(g.severity))}</span>
-    <span class="id">${g.id}</span>${g.confidence === 'verify' ? `<span class="pill sev-info">${T.verify}</span>` : ''}
+    <span class="id">${g.id}</span>${g.waiver ? `<span class="pill sev-info">${T.waived}</span>` : ''}${g.confidence === 'verify' ? `<span class="pill sev-info">${T.verify}</span>` : ''}
     <h3>${esc(g.title)}</h3>
   </header>
   <p class="meta">${esc(g.category)} · ${g.source === 'manual' ? T.manual : T.auto}${g.ruleId ? ` · <code>${esc(g.ruleId)}</code>` : ''}</p>
@@ -202,6 +218,7 @@ img{display:block;max-width:100%;max-height:360px;object-fit:cover;object-positi
 .tablewrap{overflow-x:auto}table.cov{border-collapse:collapse;width:100%;font-size:.9rem}
 table.cov th,table.cov td{text-align:start;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 table.cov th{color:var(--muted);font-weight:500}td.warn{color:var(--high);font-weight:600}
+.gate{padding:10px 14px;border-radius:8px;border:1px solid var(--line)}.gate.fail{color:var(--crit);border-color:currentColor}.gate.pass{color:var(--ok);border-color:currentColor}
 a{color:inherit}ul.plain{padding-inline-start:20px}code{font-size:.85em}
 </style></head>
 <body><main>
@@ -209,6 +226,11 @@ a{color:inherit}ul.plain{padding-inline-start:20px}code{font-size:.85em}
 <p class="sub">${esc(sitemap.startUrl)} · ${sitemap.pages.length} ${T.pages} · ${T.viewports}: ${esc((auto.viewports || []).join(', '))} · ${new Date().toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB')}</p>
 ${profile?.purpose ? `<p>${esc(profile.purpose)}</p>` : ''}
 <div class="verdict">${T.verdict}: ${esc(verdict)}</div>
+<p class="gate ${gate.status === 'PASS' ? 'pass' : 'fail'}"><strong>${T.gate}: ${gate.status}</strong> · ${esc(gate.blockOn.join('/'))}${gate.strict ? ' + strict' : ''}${gate.blocking.length ? ` · ${esc(gate.blocking.map(b => b.id).join(', '))}` : ''}${gate.waived.length ? ` · ${T.waived}: ${esc(gate.waived.map(w => `${w.id} (${w.reason}${w.expires ? `, ${w.expires}` : ''})`).join(', '))}` : ''}</p>
+${delta ? `<h2>${T.delta}</h2><ul class="plain">
+  <li>🔴 ${T.regressions}: ${delta.regressions.length ? esc(delta.regressions.map(g => `${g.id} ${g.title}`).join(' · ')) : T.none}</li>
+  <li>🆕 ${T.added}: ${delta.added.length ? esc(delta.added.map(g => `${g.id} ${g.title}`).join(' · ')) : T.none}</li>
+  <li>✅ ${T.fixed}: ${delta.fixed.length ? esc(delta.fixed.map(g => `${g.id} ${g.title}`).join(' · ')) : T.none}</li></ul>` : ''}
 <div class="counts">${SEVERITY_ORDER.map(s => `<div class="${sevClass(s)}"><b>${counts[s]}</b><span>${esc(sevLabel(s))}</span></div>`).join('')}</div>
 ${suiteResult ? `<p style="unicode-bidi:plaintext">${T.suite}: ${suiteResult.passed ?? '?'} passed · ${suiteResult.failed ?? '?'} failed · ${suiteResult.expectedFail ?? 0} known gaps (test.fail) · ${suiteResult.notTested ?? 0} NOT TESTED</p>` : ''}
 <h2>${T.coverage} · ${covPct}%</h2>
@@ -242,6 +264,9 @@ fs.writeFileSync(path.join(run, 'report.html'), html);
 
 console.log(`[report] ${gaps.length} gaps (${SEVERITY_ORDER.map(s => `${s} ${counts[s]}`).join(', ')}), ${dismissed.length} dismissed`);
 console.log(`[report] ${verdict}`);
+console.log(`[report] gate ${gate.status}${gate.blocking.length ? `: ${gate.blocking.map(b => b.id).join(', ')}` : ''}${delta ? ` | delta: ${delta.regressions.length} regressions, ${delta.added.length} new, ${delta.fixed.length} fixed` : ''}`);
 console.log(`[report] ${path.join(run, 'report.html')}`);
 
 function safeHost(u) { try { return new URL(u).host; } catch { return 'site'; } }
+
+if (args.gate && gate.status === 'FAIL') process.exit(1);

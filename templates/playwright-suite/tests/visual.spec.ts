@@ -13,7 +13,7 @@ for (const path of pages as string[]) {
     await page.evaluate(() => document.fonts.ready);
     const name = `${path.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'home'}.png`;
     await expect(page).toHaveScreenshot(name, {
-      fullPage: true, animations: 'disabled', maxDiffPixelRatio: 0.01,
+      fullPage: true, animations: 'disabled', maxDiffPixelRatio: 0.001 /* 0.1% — avoids anti-aliasing noise */,
       mask: MASK.map(m => page.locator(m)),
     });
   });

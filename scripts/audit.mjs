@@ -339,6 +339,29 @@ for (const u of toCheck) {
       expected: 'Link target loads', actual: `HTTP ${r.status()}`, evidence: { details: `Linked from: ${linkedFrom(u).slice(0, 5).join(', ')}` } });
   } catch (e) { /* network errors here are not user-visible enough to report */ }
 }
+// ---- Linked files (PDF, DOC, XLS, ZIP…): HEAD probe, never downloaded
+{
+  const FILE = /\.(pdf|docx?|xlsx?|pptx?|zip|csv|txt|rtf|odt|ods)(\?|$)/i;
+  const fileLinks = new Map(); // url -> [from]
+  for (const [from, links] of Object.entries(sitemap.linkGraph || {})) for (const l of links)
+    if (FILE.test(l.href)) fileLinks.set(l.href, [...(fileLinks.get(l.href) || []), from]);
+  const list = [...fileLinks.keys()].slice(0, 40);
+  for (const u of list) {
+    try {
+      let r = await req.head(u, { maxRedirects: 5, timeout: 15000 }).catch(() => null);
+      if (!r || r.status() === 405) r = await req.get(u, { maxRedirects: 5, timeout: 15000, headers: { Range: 'bytes=0-0' } });
+      const ct = r.headers()['content-type'] || '';
+      const html = /text\/html/i.test(ct);
+      if (r.status() >= 400 || html) add('broken-file', { page: fileLinks.get(u)[0], viewport: 'desktop',
+        title: `Linked file ${r.status() >= 400 ? `returns ${r.status()}` : 'serves an HTML page instead of the file'}: ${shortPath(u)}`,
+        steps: [`Open ${fileLinks.get(u)[0]}`, `Click the link to ${u}`], expected: 'The file downloads or opens',
+        actual: r.status() >= 400 ? `HTTP ${r.status()}` : `HTTP ${r.status()}, content-type ${ct} (likely a soft 404 or login page)`,
+        remediation: 'Upload the file or fix the link.',
+        evidence: { details: `Linked from: ${fileLinks.get(u).slice(0, 5).join(', ')}` } });
+    } catch {}
+  }
+  if (fileLinks.size > 40) notCovered.push({ reason: `Linked-file check capped at 40 of ${fileLinks.size} files` });
+}
 if ((sitemap.internalLinks || []).length - known.size > 60) notCovered.push({ reason: 'Link check capped at 60 uncrawled internal links' });
 
 // ---- Exposed files (passive GETs of well-known paths, once per origin)

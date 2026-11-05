@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures/base';
 import { ContactPage } from '../pages/ContactPage.example';
 import { notTested, linkFinding } from '../helpers/coverage';
 
@@ -17,12 +17,17 @@ test.describe('Journey: contact form', () => {
   });
 
   test('happy path — valid details are accepted', async ({ page }) => {
-    await contact.name().fill('QA Tester');
-    await contact.email().fill('qa+probe@example.com');
-    await expect(contact.submit()).toBeEnabled();
+    // Arrange / Act / Assert as steps, so a failure names the step in the report.
+    await test.step('Arrange: fill valid details', async () => {
+      await contact.name().fill('QA Tester');
+      await contact.email().fill('qa+probe@example.com');
+      await expect(contact.submit()).toBeEnabled();
+    });
     if (!SUBMIT_ALLOWED) notTested('Final submit not allowed in this environment (production / read-only)');
-    await contact.submit().click();
-    await expect(page.getByText(/thank|תודה/i)).toBeVisible();
+    await test.step('Act: submit', async () => { await contact.submit().click(); });
+    await test.step('Assert: confirmation shown', async () => {
+      await expect(page.getByText(/thank|תודה/i)).toBeVisible();
+    });
   });
 
   test('validation — empty required email is rejected', async () => {

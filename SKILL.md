@@ -1,6 +1,12 @@
 ---
 name: web-qa-agent
 description: Black-box QA of a live website or web app from a URL (production, staging or localhost), acting as a senior QA engineer who reports and never fixes. Use whenever the user gives a URL and wants it tested, QA'd, audited, checked for broken things, accessibility, RTL/Hebrew, API errors or security headers, or wants a Playwright (TypeScript) suite or test report — even if they just say "QA this", "תבדקי את האתר", "what's broken here" or "write e2e tests for this site". Plans first, then runs functional, exploratory, API/network, accessibility, performance, responsive, RTL, SEO and passive security checks and delivers a severity-ranked report. Not for reviewing a source-code repository.
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Write|Edit|MultiEdit|NotebookEdit"
+      hooks:
+        - type: command
+          command: "node \"$HOME/.claude/skills/web-qa-agent/hooks/guard.mjs\""
 ---
 
 # Web QA Agent
@@ -13,6 +19,12 @@ Language in reports: say "identified a gap" / "gap", not "found a bug". Write th
 the language the user chose in Phase 0 (default: the language the user wrote in).
 
 ## Non-negotiable rules
+
+These rules are **enforced**, not just requested: while this skill is active, a
+PreToolUse hook (`hooks/guard.mjs`) blocks writes outside `qa-runs/`, state-changing
+HTTP calls to non-local hosts, attack and load-testing tools, and `test.only` /
+`test.skip` in specs. If the guard blocks you, change the approach — never try to get
+around it.
 
 1. **Report only. Never fix.** Do not edit the target's code, config, content or data, and do
    not open PRs against it. Your output is findings, a test suite and a report.
@@ -60,7 +72,12 @@ answers, and never ask what the site itself can tell you (language, direction, p
 3. **Login** — Public pages only · Test account (credentials via `QA_USER`/`QA_PASS` or a
    Playwright storage-state file).
 4. **Key journeys & report language** — free text; default: inferred from the site,
-   report in the user's language.
+   report in the user's language. Also ask here if relevant: is this a **migration**
+   (then ask for the redirect map: CSV/JSON of old → new URLs)?
+
+For a test account, never take a password in chat: run
+`node <skill>/scripts/save-auth.mjs --url <login page>` — the user logs in by hand in
+the opened browser (works for SSO/MFA) and the session is saved for `--storage-state`.
 
 Then run the **pre-flight** — a hard gate:
 
@@ -88,7 +105,8 @@ Look at the allowed number of screenshots (home, a form page, mobile). Then writ
   "tech": ["framework/CMS clues"], "gaps": ["what the crawl could not see"] }
 ```
 
-The type sets priorities: e-commerce → cart maths, prices, checkout; SaaS → auth, roles,
+The type sets priorities (for e-commerce / SaaS plans, read
+`references/ecommerce-billing.md`): e-commerce → cart maths, prices, checkout; SaaS → auth, roles,
 CRUD; marketing → forms, mobile, SEO, performance; booking → dates, time zones,
 availability. If the crawl is nearly empty (SPA, auth wall), drive the nav with a short
 script, collect the real routes, and re-crawl them.
@@ -140,6 +158,15 @@ screenshots for every High/Critical one, re-check every visual/layout finding af
 fresh reload (drop it if it does not reproduce), reproduce anything marked
 `confidence: "verify"` by hand and either confirm it (set severity) or dismiss it with a
 reason, and raise severity for gaps on key journeys.
+
+**Migration?** If the user gave a redirect map, verify it against the live origin:
+
+```bash
+node <skill>/scripts/redirect-check.mjs --map <map.csv> --origin <origin> --out <run>
+```
+
+Every old URL is classified PASS · WRONG-TARGET · WRONG-STATUS (302 where 301 was
+expected) · CHAIN · MISSING · ERROR. ERRORs are not-tested, never passes.
 
 ### Phase 4 — Field matrix, exploratory & edge cases
 
@@ -227,6 +254,22 @@ language. Merges auto + manual findings, applies `references/severity.md`, and w
 `report.md` top to bottom and check: every finding has evidence; severities follow the
 rubric; nothing is a duplicate; "Not covered" lists anything skipped.
 
+**Release gate & delta.** The report evaluates a gate (default: blocks on Critical/High).
+A team can put `qa-gate.json` next to the runs:
+
+```json
+{ "blockOn": ["Critical", "High"], "strict": false,
+  "waivers": [{ "match": "QA-004", "reason": "Blog page ships next sprint (TICKET-12)", "expires": "2026-12-01" }] }
+```
+
+Waivers need a reason and should have an expiry; expired waivers stop applying
+automatically, and waived gaps stay in the report with a badge. `strict: true` also
+blocks on any not-tested / blocked check. Every run is saved to `qa-runs/history/`, and
+from the second run on a host the report shows **regressions** (were fixed, failing
+again), **new** gaps and **fixed** gaps. Use `--gate` to make the script exit 1 on FAIL
+(for CI). Never add a waiver yourself — waivers are the team's decision; suggest one in
+the final message if it fits.
+
 Then package the deliverables (excludes `node_modules`, `test-results`, credentials):
 
 ```bash
@@ -234,7 +277,7 @@ node <skill>/scripts/package.mjs --run <run> --dest <where the user wants it>
 ```
 
 Final message to the user (short): overall verdict (ship / ship with known gaps / don't
-ship), counts by severity, the top 3–5 gaps in one line each, what was **not** covered,
+ship), the gate result, the delta if there was a previous run, counts by severity, the top 3–5 gaps in one line each, what was **not** covered,
 where the files are, and the one-line command to re-run the suite. End with the result —
 no closing offers or questions.
 
@@ -249,8 +292,11 @@ set `QA_CHROME_PATH` to an installed Chrome/Chromium; `QA_HEADED=1` shows the br
 
 ## Files
 
-- `scripts/preflight.mjs`, `crawl.mjs`, `overview.mjs`, `audit.mjs`, `scaffold-suite.mjs`,
-  `suite-summary.mjs`, `report.mjs`, `package.mjs`, `lib.mjs`
+- `scripts/preflight.mjs`, `crawl.mjs`, `overview.mjs`, `audit.mjs`, `field-matrix.mjs`,
+  `redirect-check.mjs`, `save-auth.mjs`, `scaffold-suite.mjs`, `suite-summary.mjs`,
+  `report.mjs` (+ `gate.mjs`, `i18n-he.mjs`), `package.mjs`, `setup.mjs`, `lib.mjs`
+- `hooks/guard.mjs` — the enforcement hook declared in the frontmatter
+- `references/ecommerce-billing.md` — cart, currency/VAT, coupons, checkout, plans
 - `evals/` — regression tests for this skill itself (run after changing it; see
   `evals/README.md`)
 - `references/severity.md` — severity rubric (read before triage)

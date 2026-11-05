@@ -55,6 +55,24 @@ whether they can recover without reloading.
 - The query echoed back on the page must render as text (the audit's reflection check
   covers markup; you check the visible wording).
 
+## Roles, permissions & feature flags
+- One run per role you have an account for (owner, editor, viewer, no permission).
+  Each role you do not have is a not-tested coverage entry, not an assumption.
+- A viewer sees but cannot act: buttons hidden or disabled **and** the direct URL / API
+  call is refused (check the network response, never force it).
+- Feature flags / A-B variants: note which variant you got (cookie, header, UI) and say
+  in the report that the other variant was not tested.
+
+## Authentication patterns (from *Playwright for QA*)
+| Login type | How the agent gets in |
+|---|---|
+| Email + password (test account) | `node <skill>/scripts/save-auth.mjs --url <login>` once → `auth/state.json` → `--storage-state` |
+| SSO / Google / Okta / MFA | Same script, headed: the user logs in by hand once; the session is reused |
+| No account | Public pages only; every login-walled page is reported as **blocked** |
+
+Never type real credentials into scripts. Never brute-force or retry a login more than
+once.
+
 ## Questions to keep asking
 - What happens if this is empty? Huge? Hebrew? Pasted?
 - What does the user see while waiting? When it fails?
