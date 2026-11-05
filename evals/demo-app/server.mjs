@@ -106,8 +106,11 @@ const pages = {
       <div><label for="bname">שם מלא</label><input id="bname" name="bname" autocomplete="name" required><span class="err" id="e-bname"></span></div>
       <div><label for="bphone">טלפון</label><input id="bphone" name="bphone" type="tel" inputmode="tel" autocomplete="tel" required><span class="err" id="e-bphone"></span></div>
       <button type="submit">שליחה</button>
-    </form></div>
+    </form>
+    <div class="logos" aria-live="polite" id="car">Partner, 1 of 3</div></div>
     <script>
+      // Rotating logo carousel with aria-live (modelled on a real site): its text changes on its own.
+      let ci = 1; setInterval(() => { ci = ci % 3 + 1; document.getElementById('car').textContent = 'Partner, ' + ci + ' of 3'; }, 250);
       document.getElementById('bf').addEventListener('submit', e => { e.preventDefault();
         const n = document.getElementById('bname').value.trim(), p = document.getElementById('bphone').value.trim();
         document.getElementById('e-bname').textContent = n ? '' : 'נא למלא שם';

@@ -37,6 +37,7 @@
     { "id": "N11", "rule": "field-whitespace-only", "page": "/booking", "why": "JS trim() validation shows error in span.err (real-site false positive)" },
     { "id": "N12", "rule": "field-letters",       "page": "/booking",  "why": "JS rejects letters in phone with span.err" },
     { "id": "N13", "rule": "field-too-short",     "page": "/booking",  "why": "JS rejects short phone with span.err" },
+    { "id": "N14", "rule": "field-hebrew",        "page": "/booking",  "why": "an aria-live carousel changing on its own is not a validation error (real-site false positive)" },
     { "id": "N14", "rule": "broken-file",         "title": "price-list.pdf", "why": "Existing PDF must not be flagged" }
   ],
   "coverage": [

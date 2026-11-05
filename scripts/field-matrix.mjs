@@ -120,6 +120,9 @@ for (const { page: url, form, fields } of forms.slice(0, maxForms)) {
         await el.fill(value);
         await el.blur();
         const errorsBefore = await visibleErrors(page, sel, form.index);
+        // Noise baseline: text that changes on its own (carousels, tickers, live counters) is not a validation error.
+        await page.waitForTimeout(700);
+        const errorsIdle = await visibleErrors(page, sel, form.index);
         const submit = formLoc.locator('button:not([type=button]):not([type=reset]), input[type=submit]').first();
         if (await submit.count()) await submit.click({ timeout: 3000 }).catch(() => {});
         await page.waitForTimeout(500);
@@ -129,12 +132,18 @@ for (const { page: url, form, fields } of forms.slice(0, maxForms)) {
         }));
         const errorsAfter = await visibleErrors(page, sel, form.index);
         const submitted = await page.evaluate(() => window.__qaSubmitted || 0);
-        const nearNew = errorsAfter.near && errorsAfter.near !== errorsBefore.near;
+        const items = t => String(t || '').split(' | ').map(x => x.trim()).filter(Boolean);
+        const SLIDE = /\b\d+\s*(of|מתוך|\/)\s*\d+\b/i;
+        const seen = new Set([...items(errorsBefore.global), ...items(errorsIdle.global)]);
+        const nearNoisy = errorsBefore.near !== errorsIdle.near;
+        const freshGlobal = items(errorsAfter.global).filter(x => !seen.has(x) && !SLIDE.test(x));
+        const nearNew = !nearNoisy && errorsAfter.near && errorsAfter.near !== errorsBefore.near && !SLIDE.test(errorsAfter.near);
         const fieldKey = [f.name, f.id].filter(Boolean);
-        const globalNew = errorsAfter.global !== errorsBefore.global && errorsAfter.global.length > 0
-          && (fieldKey.some(k => errorsAfter.global.includes(k)) || !fields.some(o => o !== f && [o.name, o.id].filter(Boolean).some(k => errorsAfter.global.includes(k))));
+        const freshText = freshGlobal.join(' | ');
+        const globalNew = errorsBefore.global === errorsIdle.global && freshGlobal.length > 0
+          && (fieldKey.some(k => freshText.includes(k)) || !fields.some(o => o !== f && [o.name, o.id].filter(Boolean).some(k => freshText.includes(k))));
         obs.uiError = !!(nearNew || globalNew || obs.ariaInvalid);
-        if (obs.uiError) obs.errorText = (nearNew ? errorsAfter.near : errorsAfter.global).slice(0, 120);
+        if (obs.uiError) obs.errorText = (nearNew ? errorsAfter.near : freshText || errorsAfter.global).slice(0, 120);
         obs.rejected = !obs.valid || obs.uiError;
         obs.submitAttempted = submitted > 0 && obs.valid;
         Object.assign(cell, { observed: obs });
