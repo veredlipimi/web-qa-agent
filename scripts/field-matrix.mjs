@@ -145,7 +145,8 @@ for (const { page: url, form, fields } of forms.slice(0, maxForms)) {
             title: `"${label}" accepts ${caseId.replace(/-/g, ' ')} input ("${cell.value}")`,
             expected: 'Inline validation error; form does not submit', actual: 'No validation error; the form tried to submit (blocked by the QA agent)' };
         } else if (expectation === 'accept') {
-          if (obs.rejected) gap = { severity: caseId === 'hebrew' || caseId === 'mixed-direction' ? 'High' : 'Medium',
+          // Non-Latin rejection is High for a Hebrew/RTL audience; for other sites it is an i18n gap (Medium).
+          if (obs.rejected) gap = { severity: (caseId === 'hebrew' || caseId === 'mixed-direction') && sitemap.rtlDetected ? 'High' : 'Medium',
             title: `"${label}" rejects valid ${caseId.replace(/-/g, ' ')} input ("${cell.value}")`,
             expected: 'Accepted', actual: `Rejected${obs.message ? `: "${obs.message}"` : ''}` };
         } else if (expectation === 'max') {
