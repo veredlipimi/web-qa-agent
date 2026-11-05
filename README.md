@@ -12,7 +12,7 @@ Give it a URL. It asks its questions once, shows a test plan, then crawls, audit
 - **Field integrity matrix.** Every form field is checked for type, length and format, then filled with edge values: whitespace-only, Hebrew and mixed-direction names, Israeli phone formats, malformed emails, maxlength+1. It records whether the UI rejects what it should and accepts what it should. Nothing is ever submitted: non-GET requests are blocked and native submission is prevented.
 - **RTL / Hebrew first.** `dir`, alignment and input direction are checked automatically, with a full manual checklist for mirroring, bidi text, formats and microcopy.
 - **API / network.** 5xx and 4xx responses, failed, slow and duplicate calls, plus fault injection in exploratory runs (500, slow network, offline, expired session).
-- **Evals for the agent itself.** A Hebrew demo storefront with 20 planted gaps and 9 false-positive controls. `node evals/regression-check.mjs` must stay green after every change.
+- **Evals for the agent itself.** A Hebrew demo storefront with 20 planted gaps and 13 false-positive controls, including ones taken from a real site. `node evals/regression-check.mjs` must stay green after every change.
 - **Plan gate.** One approval, then it runs to the end without stopping.
 - **Regression-ready suite.** Every identified gap gets a `test.fail()` test with its ID, so the run stays green while the gap exists and flags it once it is fixed.
 
@@ -26,6 +26,8 @@ node ~/.claude/skills/web-qa-agent/scripts/setup.mjs
 ```
 
 Requires Node 18+ and Claude Code. Python is not needed.
+
+On a Mac? Step-by-step guide (Hebrew): [docs/INSTALL-mac.he.md](docs/INSTALL-mac.he.md)
 
 ## Use
 
@@ -59,7 +61,7 @@ You choose a depth (Quick / Standard / Deep), the environment (production read-o
 ## Test the agent
 
 ```bash
-node evals/regression-check.mjs     # 38 deterministic checks, ~2 min
+node evals/regression-check.mjs     # 43 deterministic checks, ~2 min
 ```
 
 See [`evals/README.md`](evals/README.md) for the LLM-graded behaviour cases.
@@ -83,7 +85,7 @@ MIT © Vered Li
 - **מטריצת שדות:** גודל, אורך ופורמט של כל שדה, עם ערכי קצה בעברית ובפורמטים ישראליים, בלי לשלוח אף טופס.
 - **RTL ועברית:** בדיקות אוטומטיות של dir, יישור וכיוון שדות קלט, וצ׳קליסט ידני מלא.
 - **API ורשת:** קריאות שנכשלות, איטיות או כפולות, והזרקת תקלות.
-- **Evals לסוכן עצמו:** חנות דמו בעברית עם 20 פערים מתוכננים ו-9 בדיקות נגד false positives.
+- **Evals לסוכן עצמו:** חנות דמו בעברית עם 20 פערים מתוכננים ו-13 בדיקות נגד false positives.
 - **דוח בעברית**, ו-`test.fail()` לכל פער שזוהה.
 
 **התקנה:**
@@ -94,3 +96,5 @@ node ~/.claude/skills/web-qa-agent/scripts/setup.mjs
 ```
 
 **שימוש:** ב-Claude Code כותבים `QA https://האתר-שלך`.
+
+**ב-Mac?** מדריך צעד אחר צעד, כולל בדיקה של אתר מקומי: [docs/INSTALL-mac.he.md](docs/INSTALL-mac.he.md)
