@@ -8,6 +8,7 @@ import { parseArgs, need, readJson, writeJson, SEVERITY_ORDER } from './lib.mjs'
 import { localizeFinding, heString } from './i18n-he.mjs';
 import { loadGateConfig, evaluateGate, computeDelta } from './gate.mjs';
 import { loadTraceability, testCasesCsv } from './requirements.mjs';
+import { apiCsv } from './api-inventory.mjs';
 
 const args = parseArgs();
 const run = need(args, 'run', 'run folder');
@@ -34,7 +35,7 @@ const T = {
     coverage: 'Coverage', tested: 'Tested', notTested: 'Not tested', blocked: 'Blocked', scoped: 'in the tested scope only', covNote: 'A clean result covers only what was tested. Not-tested and blocked checks are not passes.',
     gate: 'Release gate', waived: 'waived', delta: 'Since the previous run', regressions: 'Regressions (were fixed, failing again)', added: 'New gaps', fixed: 'Fixed', expiredW: 'Expired waivers (no longer applied)', strictB: 'Strict mode: categories with untested checks',
     pre: 'Preconditions', req: 'Requirement', type: 'Type', impact: 'Impact / risk', questions: 'Open questions for product / dev', trace: 'Requirements traceability',
-    traceNote: 'Each requirement → the test cases that cover it → the result. Judged from what a user can see and do, not from source code.', cases: 'Test cases', status: 'Status', reqWarn: 'Traceability warnings', reqPassed: 'requirements pass' },
+    traceNote: 'Each requirement → the test cases that cover it → the result. Judged from what a user can see and do, not from source code.', cases: 'Test cases', status: 'Status', reqWarn: 'Traceability warnings', reqPassed: 'requirements pass', api: 'API endpoints observed', apiNote: 'Every XHR/fetch call the pages made while loading, grouped by endpoint. A starting point for API test scenarios — observed, never called by the agent.', method: 'Method', endpoint: 'Endpoint', calls: 'Calls', statuses: 'Statuses', slowest: 'Slowest', onlyChromium: 'Firefox and Safari (WebKit) not tested — the audit and suite ran on Chromium only', missingB: (b) => `Not tested on ${b} — the suite ran without it` },
   he: { summary: 'תקציר', verdict: 'שורה תחתונה', findings: 'פערים שזוהו', sev: 'חומרה', cat: 'קטגוריה',
     where: 'איפה', steps: 'צעדים לשחזור', expected: 'צפוי', actual: 'בפועל', evidence: 'ראיות',
     notCovered: 'לא נבדק', dismissed: 'נפסל בטריאז׳', assumptions: 'הנחות', scope: 'היקף',
@@ -44,7 +45,7 @@ const T = {
     coverage: 'כיסוי', tested: 'נבדק', notTested: 'לא נבדק', blocked: 'חסום', scoped: 'בטווח שנבדק בלבד', covNote: 'תוצאה נקייה מתייחסת רק למה שנבדק. בדיקות שלא רצו או נחסמו אינן הצלחה.',
     gate: 'שער שחרור', waived: 'פטור', delta: 'מאז ההרצה הקודמת', regressions: 'רגרסיות (תוקנו וחזרו)', added: 'פערים חדשים', fixed: 'תוקנו', expiredW: 'פטורים שפג תוקפם (לא חלים)', strictB: 'מצב קפדני: קטגוריות עם בדיקות שלא רצו',
     pre: 'תנאים מקדימים', req: 'דרישה', type: 'סוג', impact: 'השפעה / סיכון', questions: 'שאלות פתוחות למוצר / לפיתוח', trace: 'מעקב דרישות',
-    traceNote: 'כל דרישה ← מקרי הבדיקה שמכסים אותה ← התוצאה. נבחן לפי מה שמשתמש רואה ועושה, לא לפי קוד המקור.', cases: 'מקרי בדיקה', status: 'סטטוס', reqWarn: 'אזהרות מעקב', reqPassed: 'דרישות עברו' },
+    traceNote: 'כל דרישה ← מקרי הבדיקה שמכסים אותה ← התוצאה. נבחן לפי מה שמשתמש רואה ועושה, לא לפי קוד המקור.', cases: 'מקרי בדיקה', status: 'סטטוס', reqWarn: 'אזהרות מעקב', reqPassed: 'דרישות עברו', api: 'נקודות API שנצפו', apiNote: 'כל קריאות XHR/fetch שהעמודים ביצעו בזמן הטעינה, מקובצות לפי endpoint. בסיס לתרחישי בדיקת API — נצפו בלבד, הסוכן לא קרא להן בעצמו.', method: 'שיטה', endpoint: 'נקודת קצה', calls: 'קריאות', statuses: 'סטטוסים', slowest: 'האיטית ביותר', onlyChromium: 'Firefox ו-Safari (WebKit) לא נבדקו — הבדיקה והסוויטה רצו על Chromium בלבד', missingB: (b) => `לא נבדק ב-${b} — הסוויטה רצה בלעדיו` },
 }[lang];
 const SEV_HE = { Critical: 'קריטי', High: 'גבוה', Medium: 'בינוני', Low: 'נמוך', Info: 'מידע' };
 const sevLabel = s => (lang === 'he' ? `${SEV_HE[s]} · ${s}` : s);
@@ -87,6 +88,14 @@ gaps.forEach(g => { if (!(g.source === 'manual' && g.id)) g.id = `QA-${String(++
 
 const trace = loadTraceability(run, gaps.map(g => g.id));
 if (trace) fs.writeFileSync(path.join(run, 'test-cases.csv'), testCasesCsv(trace));
+const apiRows = auto.apiInventory || [];
+if (apiRows.length) fs.writeFileSync(path.join(run, 'api-endpoints.csv'), apiCsv(apiRows));
+// Browsers: the audit is Chromium; the suite may add firefox / webkit / mobile-safari (QA_BROWSERS).
+const browsersRun = new Set([...(auto.findings.length || auto.coverage?.length ? ['chromium'] : []),
+  ...((suiteResult?.projects) || []).map(p => (['desktop', 'mobile', 'visual'].includes(p) ? 'chromium' : p))]);
+const browserGaps = !browsersRun.size ? [] : !browsersRun.has('firefox') && !browsersRun.has('webkit') && !browsersRun.has('mobile-safari')
+  ? [{ reason: T.onlyChromium }]
+  : [['firefox', 'Firefox'], ['webkit', 'Safari (WebKit)']].filter(([k]) => !browsersRun.has(k) && !(k === 'webkit' && browsersRun.has('mobile-safari'))).map(([, n]) => ({ reason: T.missingB(n) }));
 const questions = (manual.openQuestions || []).map(q => (typeof q === 'string' ? { question: q } : q)).filter(q => q.question);
 const counts = Object.fromEntries(SEVERITY_ORDER.map(s => [s, gaps.filter(g => g.severity === s).length]));
 const byCat = gaps.reduce((a, g) => (a[g.category] = (a[g.category] || 0) + 1, a), {});
@@ -107,7 +116,7 @@ const gateCfg = loadGateConfig(run);
 const gate = evaluateGate(gaps, covRows, gateCfg);
 const delta = computeDelta(run, safeHost(sitemap.startUrl), gaps);
 const verdict = fullCoverage || counts.Critical ? baseVerdict : `${baseVerdict} (${T.scoped} — ${T.coverage} ${covPct}%)`;
-const notCovered = [...(auto.notCovered || []), ...(fields.notCovered || []), ...(manual.notCovered || []),
+const notCovered = [...browserGaps, ...(auto.notCovered || []), ...(fields.notCovered || []), ...(manual.notCovered || []),
   ...((suiteResult?.notTestedList) || []).map(n => ({ page: n.test, reason: `Suite: ${n.reason}` }))]
   .map(n => (lang === 'he' ? { ...n, reason: heString(n.reason) } : n));
 // One line per dismissed root cause, not per occurrence.
@@ -123,7 +132,7 @@ const flat = gaps.map(g => ({
   confidence: g.confidence || 'confirmed', remediation: g.remediation || '',
   preconditions: g.preconditions || '', requirement: [].concat(g.requirement || []).join(' | '), type: g.type || '', impact: g.impact || '',
 }));
-writeJson(path.join(run, 'findings.json'), { title, generatedAt: new Date().toISOString(), verdict, counts, coverage: { percent: covPct, tested: covTested, total: covTotal, byCategory: covRows }, gate, delta, gaps, dismissed, notCovered, assumptions, traceability: trace, openQuestions: questions });
+writeJson(path.join(run, 'findings.json'), { title, generatedAt: new Date().toISOString(), verdict, counts, coverage: { percent: covPct, tested: covTested, total: covTotal, byCategory: covRows }, gate, delta, gaps, dismissed, notCovered, assumptions, traceability: trace, openQuestions: questions, browsers: [...browsersRun], apiInventory: apiRows });
 const csvCell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
 const cols = Object.keys(flat[0] || { id: '', severity: '', category: '', title: '' });
 fs.writeFileSync(path.join(run, 'findings.csv'), '﻿' + [cols.join(','), ...flat.map(r => cols.map(c => csvCell(r[c])).join(','))].join('\n'));
@@ -170,6 +179,13 @@ for (const g of gaps) {
   if (g.evidence?.details) md.push('', '```', g.evidence.details, '```');
   if (g.remediation) md.push('', `**${T.fix}:** ${g.remediation}`);
   if (g.triageNote) md.push('', `> ${g.triageNote}`);
+  md.push('');
+}
+const statusStr = r => [...Object.entries(r.statuses).map(([k, n]) => `${k}×${n}`), ...(r.failures ? [`failed×${r.failures}`] : [])].join(' ');
+if (apiRows.length) {
+  md.push(`## ${T.api} (${apiRows.length})`, '', `_${T.apiNote}_ — \`api-endpoints.csv\``, '', `| ${T.method} | ${T.endpoint} | ${T.calls} | ${T.statuses} | ${T.slowest} |`, '|---|---|---|---|---|');
+  for (const r of apiRows.slice(0, 25)) md.push(`| ${r.method} | \`${r.host}${r.path}\`${r.query.length ? ` ?${r.query.join('&')}` : ''} | ${r.calls} | ${statusStr(r)} | ${r.maxMs} ms |`);
+  if (apiRows.length > 25) md.push('', `… +${apiRows.length - 25}`);
   md.push('');
 }
 if (questions.length) { md.push(`## ${T.questions}`, ''); questions.forEach(q => md.push(`- ${q.question}${q.for ? ` _(${q.for})_` : ''}${q.related ? ` — ${[].concat(q.related).join(', ')}` : ''}`)); md.push(''); }
@@ -272,6 +288,10 @@ ${trace.warnings.length ? `<p class="note"><strong>${T.reqWarn}</strong><br>${tr
   ${Object.entries(byCat).map(([c, n]) => `<button aria-pressed="false" data-f="cat:${esc(c)}">${esc(c)} · ${n}</button>`).join('')}
 </div>
 <section id="gaps">${gaps.map(gapHtml).join('') || `<p>${T.none}</p>`}</section>
+${apiRows.length ? `<h2>${T.api} · ${apiRows.length}</h2><p class="meta">${esc(T.apiNote)} · <a href="api-endpoints.csv">api-endpoints.csv</a></p>
+<div class="tablewrap"><table class="cov"><thead><tr><th>${T.method}</th><th>${T.endpoint}</th><th>${T.calls}</th><th>${T.statuses}</th><th>${T.slowest}</th></tr></thead><tbody>
+${apiRows.slice(0, 25).map(r => `<tr><td>${esc(r.method)}</td><td><code>${esc(r.host + r.path)}</code>${r.query.length ? ` <span class="meta">?${esc(r.query.join('&'))}</span>` : ''}</td><td>${r.calls}</td><td class="${Object.keys(r.statuses).some(k => k >= 400) || r.failures ? 'warn' : ''}">${esc(statusStr(r))}</td><td>${r.maxMs} ms</td></tr>`).join('')}
+</tbody></table></div>` : ''}
 ${questions.length ? `<h2>${T.questions}</h2><ul class="plain">${questions.map(q => `<li>${esc(q.question)}${q.for ? ` <span class="meta">(${esc(q.for)})</span>` : ''}${q.related ? ` — ${esc([].concat(q.related).join(', '))}` : ''}</li>`).join('')}</ul>` : ''}
 ${assumptions.length ? `<h2>${T.assumptions}</h2><ul class="plain">${assumptions.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
 <h2>${T.notCovered}</h2><ul class="plain">${notCovered.map(n => `<li>${esc([n.page, n.viewport, n.reason].filter(Boolean).join(' — '))}</li>`).join('') || `<li>${T.none}</li>`}</ul>

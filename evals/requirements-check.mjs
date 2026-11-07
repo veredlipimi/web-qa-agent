@@ -41,6 +41,12 @@ check('T12', 'requirement roll-up uses every case (AC-1 = FAIL)', t.requirements
 const csv = testCasesCsv(traceability(reqs, { cases: [{ id: 'TC-1', requirement: ['AC-1', 'AC-2'], title: 'Say "hi"', steps: ['Open', 'Click'], verify: ['Possible to save', 'Total is correct'], status: 'PASS' }] }));
 check('T13', 'CSV: numbered steps and bulleted verify in one cell each', csv.includes('"1. Open\n2. Click"') && csv.includes('"- Possible to save\n- Total is correct"'));
 check('T14', 'CSV: quotes escaped, BOM for Excel/Sheets', csv.includes('"Say ""hi"""') && csv.startsWith('﻿'));
+const td = traceability(reqs, { cases: [
+  { id: 'TC-A', requirement: 'AC-1', steps: ['x'], verify: ['y'], status: 'PASS', testData: 'User: QA_USER / password: QA_PASS (env)' },
+  { id: 'TC-B', requirement: 'AC-1', steps: ['x'], verify: ['y'], status: 'PASS', testData: 'password: hunter2' },
+] });
+check('T21', 'test data naming an env var is fine; a literal password is flagged', !td.warnings.some(w => w.case === 'TC-A') && td.warnings.some(w => w.case === 'TC-B' && /credential/.test(w.problem)));
+check('T22', 'CSV has a Test data column', testCasesCsv(td).split('\n')[0].includes('Test data'));
 
 // ---- report integration
 const run = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-req-'));

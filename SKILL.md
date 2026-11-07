@@ -143,7 +143,7 @@ gate. After "go", run Phases 3–6 without stopping.
 | Viewports | mobile, desktop | mobile, tablet, desktop | all three |
 | Exploratory journeys | none — only re-verify top auto findings | 2–4 main journeys | all journeys + full field matrices |
 | RTL checklist | auto checks only | home + key journeys | every page template |
-| Suite | smoke only, if asked | smoke + one spec per journey | + visual baseline (`--project=visual`) |
+| Suite | smoke only, if asked | smoke + one spec per journey | + visual baseline (`--project=visual`) + Firefox and WebKit (`QA_BROWSERS=firefox,webkit,mobile-safari`) |
 | Suite runs | 1 | 1 + 1 targeted re-run of your own fixes | 2 |
 | Screenshots you open | ≤2 | ≤5 | ≤10 |
 
@@ -165,7 +165,11 @@ images and links; soft 404s (unknown URL → 200, or "not found" pages linked fr
 site); SEO basics; passive security headers, cookie flags, mixed content, exposed files,
 and one inert reflection marker in GET search/query params; RTL issues. Pages are judged
 settled: load + network idle + fonts ready + scrolled through for lazy content. Output:
-`<run>/findings.auto.json` + `<run>/screenshots/`. Use `--viewports mobile,desktop` for
+`<run>/findings.auto.json` + `<run>/screenshots/`. It also keeps an **API inventory**: every
+XHR/fetch endpoint the pages called (method, normalized path, query keys, statuses,
+timings, pages) — observed only, never called by you. Use it to spot API risks for the
+plan and as the base for API test scenarios; the report lists it and writes
+`api-endpoints.csv`. Use `--viewports mobile,desktop` for
 Quick; `--skip-reflection` if the user asked for no security checks at all.
 
 Then **triage** in `<run>/triage.json` (format in `references/severity.md`): open the
@@ -271,6 +275,10 @@ before delivering). Rules:
 - Credentials from `process.env`, base URL from `BASE_URL`.
 - Each confirmed gap gets a regression test marked `test.fail()` with the finding ID in
   the title, so it turns green when fixed.
+- Browsers: the audit runs on Chromium only. On Deep, also run the suite on
+  `QA_BROWSERS=firefox,webkit,mobile-safari` (`npx playwright install firefox webkit` first);
+  if those browsers can't be installed, say so. The report lists every browser that did
+  not run under "Not covered" — never imply Safari works because Chrome did.
 - Run it once: `cd <run>/suite && npm install && BASE_URL=<origin> npx playwright test`,
   then `node <skill>/scripts/suite-summary.mjs --run <run>` (feeds the counts into the
   report). A smoke failure that matches a known gap is expected — mark it `test.fail()`
@@ -335,7 +343,7 @@ set `QA_CHROME_PATH` to an installed Chrome/Chromium; `QA_HEADED=1` shows the br
 
 - `scripts/preflight.mjs`, `crawl.mjs`, `overview.mjs`, `audit.mjs`, `field-matrix.mjs`,
   `redirect-check.mjs`, `save-auth.mjs`, `scaffold-suite.mjs`, `suite-summary.mjs`,
-  `report.mjs` (+ `gate.mjs`, `i18n-he.mjs`, `requirements.mjs`), `package.mjs`, `setup.mjs`, `lib.mjs`
+  `report.mjs` (+ `gate.mjs`, `i18n-he.mjs`, `requirements.mjs`, `api-inventory.mjs`), `package.mjs`, `setup.mjs`, `lib.mjs`
 - `hooks/guard.mjs` — the enforcement hook declared in the frontmatter
 - `references/ecommerce-billing.md` — cart, currency/VAT, coupons, checkout, plans
 - `evals/` — regression tests for this skill itself (run after changing it; see

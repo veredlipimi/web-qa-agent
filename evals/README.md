@@ -17,13 +17,13 @@ runs preflight → crawl → audit → field-matrix → report, and checks `expe
 | `find` (E01–E16, F01–F04) | Every planted gap is identified: API 500, duplicate calls, reflected search, soft 404, missing `dir=rtl`, left-aligned Hebrew, mobile overflow, placeholder-only field, whitespace-only and Hebrew-name validation, `type=text` phone, `+972` rejected, exposed `.env`, cookie flags, headers |
 | `notFind` (N01–N09) | **False-positive guards.** Control pages that are correct (`/policy`, `/search-safe`, the labelled email field, valid `qa+probe@` email) must stay clean |
 | `coverage` (C01–C03) | Checks are marked *tested* where they ran |
-| `R01–R06` | Verdict, coverage %, deliverables, evidence on every gap, no `node_modules` |
+| `R01–R09` | Verdict, coverage %, deliverables, evidence on every gap, no `node_modules`; a Chromium-only run lists Firefox/Safari as not covered; the API inventory groups repeated calls and lists failing endpoints first |
 | `D-*` | Redirect map: PASS, WRONG-STATUS, WRONG-TARGET, MISSING, CHAIN each classified correctly |
 | `D-CG*` | Same map through the CutoverGate engine gives the same classification (runs when CutoverGate is found as a sibling folder or in `$CUTOVERGATE`) |
 | `G01–G05` | Gate: valid waiver applied, expired waiver ignored, waiver without reason rejected, FAIL with Critical, `--gate` exit code |
 | `H01–H03` | Delta across three runs: fixed, new, regression |
 | `K01` | Enforcement guard unit tests (`guard-check.mjs`, 12 cases) |
-| `T00` | Requirements traceability (`requirements-check.mjs`, 20 cases, no browser): roll-up rules, the honesty warnings (FAIL without a gap, NOT_TESTED without a reason, unknown requirement, uncovered requirement), the Sheets CSV, and the report sections |
+| `T00` | Requirements traceability (`requirements-check.mjs`, 22 cases, no browser): roll-up rules, the honesty warnings (FAIL without a gap, NOT_TESTED without a reason, unknown requirement, uncovered requirement, a literal password in test data), the Sheets CSV, and the report sections |
 
 When you add a check: plant a gap in `demo-app/server.mjs`, add a `find` line, **and**
 a correct control with a `notFind` line. A check without a control will drift into noise.

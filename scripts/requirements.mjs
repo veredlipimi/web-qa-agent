@@ -3,7 +3,7 @@
 //
 // requirements.json  { "source": "where they came from", "items": [{ "id": "AC-1", "text": "…", "source": "TICKET-12" }] }
 // test-cases.json    { "cases": [{ "id": "TC-001", "requirement": "AC-1" | ["AC-1","AC-2"], "area": "Checkout",
-//                       "title": "…", "preconditions": "…", "steps": ["…"], "verify": ["…"], "viewport": "mobile",
+//                       "title": "…", "preconditions": "…", "testData": "…", "steps": ["…"], "verify": ["…"], "viewport": "mobile",
 //                       "status": "PASS|FAIL|PARTIAL|NOT_IMPLEMENTED|NOT_VERIFIABLE|NOT_TESTED",
 //                       "gaps": ["EXP-001"], "notes": "…" }] }
 //
@@ -22,6 +22,8 @@ export const CASE_STATUSES = ['PASS', 'FAIL', 'PARTIAL', 'NOT_IMPLEMENTED', 'NOT
 const BAD = new Set(['FAIL', 'PARTIAL', 'NOT_IMPLEMENTED']);
 const OPEN = new Set(['NOT_VERIFIABLE', 'NOT_TESTED']);
 
+// A value after password/token/secret/api key — names of env vars are fine, values are not.
+const SECRET = /(pass(word)?|pwd|token|secret|api[_ -]?key)\s*[:=]\s*(?!\$|process\.env|QA_)\S+/i;
 const list = v => (Array.isArray(v) ? v : v ? [v] : []).map(String);
 const norm = s => String(s || 'NOT_TESTED').trim().toUpperCase().replace(/[\s-]+/g, '_');
 
@@ -50,7 +52,7 @@ export function traceability(reqs, tcs, gapIds = []) {
     const status = CASE_STATUSES.includes(norm(c.status)) ? norm(c.status) : 'NOT_TESTED';
     const out = {
       id: String(c.id || `TC-${String(i + 1).padStart(3, '0')}`), requirement: list(c.requirement), area: c.area || '',
-      title: c.title || '', preconditions: c.preconditions || '', steps: list(c.steps), verify: list(c.verify),
+      title: c.title || '', preconditions: c.preconditions || '', testData: c.testData || '', steps: list(c.steps), verify: list(c.verify),
       viewport: c.viewport || '', status, gaps: list(c.gaps), notes: c.notes || '',
     };
     if (!CASE_STATUSES.includes(norm(c.status))) warnings.push({ case: out.id, problem: `unknown status "${c.status}" — counted as NOT_TESTED` });
@@ -60,6 +62,7 @@ export function traceability(reqs, tcs, gapIds = []) {
     for (const g of out.gaps) if (!ids.has(g)) warnings.push({ case: out.id, problem: `links to gap ${g}, which is not in the report` });
     if (OPEN.has(status) && !out.notes) warnings.push({ case: out.id, problem: `${status} without a reason in notes` });
     if (!out.steps.length || !out.verify.length) warnings.push({ case: out.id, problem: 'needs both steps and verify lines' });
+    if (SECRET.test(out.testData)) warnings.push({ case: out.id, problem: 'test data looks like a credential — name the env var (QA_USER / QA_PASS) instead of the value' });
     return out;
   });
   const rows = items.map(r => {
@@ -83,9 +86,9 @@ export function loadTraceability(run, gapIds) {
 
 /** Google Sheets-ready CSV: one row per test case, multi-line cells for steps and verify. */
 export function testCasesCsv(t) {
-  const cols = ['ID', 'Area', 'Requirement', 'Title', 'Preconditions', 'Steps', 'Verify', 'Viewport', 'Status', 'Notes', 'Gaps'];
+  const cols = ['ID', 'Area', 'Requirement', 'Title', 'Preconditions', 'Test data', 'Steps', 'Verify', 'Viewport', 'Status', 'Notes', 'Gaps'];
   const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const rows = t.cases.map(c => [c.id, c.area, c.requirement.join(', '), c.title, c.preconditions,
+  const rows = t.cases.map(c => [c.id, c.area, c.requirement.join(', '), c.title, c.preconditions, c.testData,
     c.steps.map((s, i) => `${i + 1}. ${s}`).join('\n'), c.verify.map(v => `- ${v}`).join('\n'),
     c.viewport, c.status, c.notes, c.gaps.join(', ')]);
   return '﻿' + [cols.join(','), ...rows.map(r => r.map(cell).join(','))].join('\n') + '\n';

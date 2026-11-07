@@ -18,6 +18,8 @@ const vpNames = String(args.viewports || 'mobile,tablet,desktop').split(',').fil
 
 const THRESH = { lcpMs: 2500, cls: 0.1, ttfbMs: 800, slowApiMs: 2000, weightBytes: 3 * 1024 * 1024, tapPx: 24 };
 
+import { createInventory, addRequest, inventoryRows } from './api-inventory.mjs';
+const apiInventory = createInventory();
 const findings = [];
 const notCovered = [];
 const add = (ruleId, f) => findings.push(makeFinding(ruleId, f));
@@ -151,6 +153,7 @@ for (const vpName of vpNames) {
 
     // ---- API / Network
     const api = requests.filter(r => ['xhr', 'fetch'].includes(r.type));
+    for (const r of api) addRequest(apiInventory, r, url);
     for (const r of requests) {
       const short = `${r.method} ${r.url.slice(0, 120)}`;
       if (r.failure) add('request-failed', { ...base, title: `Request failed (${r.failure}): ${shortPath(r.url)}`,
@@ -454,7 +457,7 @@ if (!args['skip-reflection']) {
 await browser.close();
 if (args['skip-reflection']) notCovered.push({ reason: 'Reflected-input check skipped (--skip-reflection)' });
 if (args['skip-exposed-files']) notCovered.push({ reason: 'Exposed-files check skipped (--skip-exposed-files)' });
-writeJson(path.join(outDir, 'findings.auto.json'), { generatedAt: new Date().toISOString(), viewports: vpNames, findings, notCovered, coverage });
+writeJson(path.join(outDir, 'findings.auto.json'), { generatedAt: new Date().toISOString(), viewports: vpNames, browser: 'chromium', findings, notCovered, coverage, apiInventory: inventoryRows(apiInventory) });
 const bySev = findings.reduce((a, f) => (a[f.severity] = (a[f.severity] || 0) + 1, a), {});
 const cov = coverage.filter(c => c.status !== 'n/a');
 console.log(`[audit] ${findings.length} raw findings`, bySev, `| coverage ${cov.filter(c => c.status === 'tested').length}/${cov.length} checks | not covered: ${notCovered.length}`);

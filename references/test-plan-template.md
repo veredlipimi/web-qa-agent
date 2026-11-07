@@ -10,7 +10,7 @@ sign-up flow").
 - **In scope:** {{URL / page budget / flows}}
 - **Out of scope:** {{third-party domains, admin area, load testing, active security testing}}
 - **Viewports:** mobile 390×844 · tablet 768×1024 · desktop 1440×900
-- **Browser:** Chromium (latest via Playwright)
+- **Browsers:** Chromium (audit + suite). Deep: also Firefox and WebKit/Safari in the suite (`QA_BROWSERS`). Anything not run is listed as not covered.
 
 ## 3. Key user journeys (ranked by business risk)
 | # | Journey | Why it matters | Submit allowed? |
@@ -65,6 +65,7 @@ questions go to `openQuestions`, not into invented cases.
     "id": "TC-001", "requirement": "AC-1", "area": "Plan picker",
     "title": "Yearly cycle updates every price on the page",
     "preconditions": "Logged-out visitor, desktop",
+    "testData": "Any plan; coupon SAVE10 (staging only)",
     "steps": ["Open /plans", "Click Yearly", "Refresh the page", "Navigate back > forth"],
     "verify": ["Yearly price and savings are shown for every plan", "Selection survives refresh and back/forth"],
     "viewport": "desktop", "status": "NOT_TESTED", "gaps": [], "notes": "" } ] }
@@ -73,6 +74,8 @@ questions go to `openQuestions`, not into invented cases.
 **Test case style**
 
 - **Title**: what is being proven, one line.
+- **Test data**: the values the case needs (coupon, product, account type). Accounts are
+  named by env var (`QA_USER`), never with a password.
 - **Steps**: numbered, one action each, starting with a verb — Click, Type, Select,
   Toggle, Change, Enter, Navigate, Refresh. Name the control by its visible label.
 - **Verify**: one checkable assertion per line. Use "Possible to …" / "Impossible to …"
