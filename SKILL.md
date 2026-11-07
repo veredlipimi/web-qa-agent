@@ -73,7 +73,10 @@ answers, and never ask what the site itself can tell you (language, direction, p
    Playwright storage-state file).
 4. **Key journeys & report language** — free text; default: inferred from the site,
    report in the user's language. Also ask here if relevant: is this a **migration**
-   (then ask for the redirect map: CSV/JSON of old → new URLs)?
+   (then ask for the redirect map: CSV/JSON of old → new URLs)? Are there **requirements**
+   to test against — user stories, acceptance criteria, design notes or an existing test
+   plan (pasted text or files)? If yes, the run also produces a requirements traceability
+   matrix (Phase 2).
 
 For a test account, never take a password in chat: run
 `node <skill>/scripts/save-auth.mjs --url <login page>` — the user logs in by hand in
@@ -116,6 +119,18 @@ script, collect the real routes, and re-crawl them.
 Read `references/test-plan-template.md` and write `test-plan.md`, driven by the app
 profile: scope, out of scope, journeys, ranked risks, check matrix, test data,
 constraints, entry/exit criteria, assumptions.
+
+**Requirements given?** Turn them into `<run>/requirements.json` (one item per acceptance
+criterion, with its source) and `<run>/test-cases.json` (all `NOT_TESTED` for now) — shapes
+and the test-case style are in `references/test-plan-template.md` §10. Rules:
+
+- Write test cases only for what the requirements say. Do not invent requirements; if
+  something seems missing or contradictory, it goes in `openQuestions` (see
+  `references/finding-schema.md`), not in a test case.
+- Every requirement gets at least one case; one that can't get a case is a traceability
+  gap — say why in its notes.
+- Black-box: you judge what a user can see and do. Effects you can't observe (emails,
+  back-office records, payments on production) are `NOT_VERIFIABLE` with the reason.
 
 Show a ≤15-line summary and ask for a single "go" (or changes). This is the only approval
 gate. After "go", run Phases 3–6 without stopping.
@@ -220,6 +235,14 @@ Add a `coverage` entry per journey to `findings.manual.json` (category `Explorat
 status tested / not-tested / blocked with reason), so hands-on work shows in the coverage
 table too.
 
+**Test cases from requirements.** Run every case in `test-cases.json` and set its status:
+PASS · FAIL · PARTIAL · NOT_IMPLEMENTED (the behaviour is not reachable in the UI at all) ·
+NOT_VERIFIABLE · NOT_TESTED. FAIL, PARTIAL and NOT_IMPLEMENTED must list the gap IDs that
+show it (`"gaps": ["EXP-003"]`) — no linked gap, no evidence. NOT_VERIFIABLE and
+NOT_TESTED need the reason in `notes`. Give each related finding `"requirement": "AC-2"`.
+When the observation is certain but its cause or reach is not, say so in the finding's
+`impact` with **Likely** / **Possible** — never as fact.
+
 **Reconcile contradictions.** If the field matrix says a case passed and your hands-on run
 says it failed (or the reverse), do not report both: vary one thing at a time (value
 length, character class, submit vs blur) until you know the cause, then report the cause
@@ -288,8 +311,14 @@ Then package the deliverables (excludes `node_modules`, `test-results`, credenti
 node <skill>/scripts/package.mjs --run <run> --dest <where the user wants it>
 ```
 
+When the run has requirements, the report adds the traceability matrix (requirement →
+test cases → status → gaps), lists traceability warnings (a FAIL with no gap, a
+requirement with no case, an unknown requirement ID), and writes `test-cases.csv` — one
+row per case with numbered steps and bulleted Verify lines in single cells, ready to
+import into Google Sheets. Fix every warning before handing over.
+
 Final message to the user (short): overall verdict (ship / ship with known gaps / don't
-ship), the gate result, the delta if there was a previous run, counts by severity, the top 3–5 gaps in one line each, what was **not** covered,
+ship), the gate result, the delta if there was a previous run, counts by severity, requirements passed (e.g. 9/12) when there were any, the top 3–5 gaps in one line each, the open questions, what was **not** covered,
 where the files are, and the one-line command to re-run the suite. End with the result —
 no closing offers or questions.
 
@@ -306,7 +335,7 @@ set `QA_CHROME_PATH` to an installed Chrome/Chromium; `QA_HEADED=1` shows the br
 
 - `scripts/preflight.mjs`, `crawl.mjs`, `overview.mjs`, `audit.mjs`, `field-matrix.mjs`,
   `redirect-check.mjs`, `save-auth.mjs`, `scaffold-suite.mjs`, `suite-summary.mjs`,
-  `report.mjs` (+ `gate.mjs`, `i18n-he.mjs`), `package.mjs`, `setup.mjs`, `lib.mjs`
+  `report.mjs` (+ `gate.mjs`, `i18n-he.mjs`, `requirements.mjs`), `package.mjs`, `setup.mjs`, `lib.mjs`
 - `hooks/guard.mjs` — the enforcement hook declared in the frontmatter
 - `references/ecommerce-billing.md` — cart, currency/VAT, coupons, checkout, plans
 - `evals/` — regression tests for this skill itself (run after changing it; see

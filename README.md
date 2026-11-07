@@ -13,6 +13,7 @@ Give it a URL. It asks its questions once, shows a test plan, then crawls, audit
 - **RTL / Hebrew first.** `dir`, alignment and input direction are checked automatically, with a full manual checklist for mirroring, bidi text, formats and microcopy.
 - **API / network.** 5xx and 4xx responses, failed, slow and duplicate calls, plus fault injection in exploratory runs (500, slow network, offline, expired session).
 - **Evals for the agent itself.** A Hebrew demo storefront with planted gaps, redirect rules, gate/waiver and delta scenarios, and 14 false-positive controls, including ones taken from a real site. `node evals/regression-check.mjs` must stay green after every change.
+- **Requirements traceability.** Give it user stories, acceptance criteria, design notes or an existing test plan. It writes test cases only for what they say, runs them, and maps every requirement → test cases → PASS · FAIL · PARTIAL · NOT IMPLEMENTED · NOT VERIFIABLE · NOT TESTED → gaps. A FAIL with no linked gap, or a requirement with no case, is flagged in the report. The cases are also exported as a Google Sheets-ready CSV. Questions only product or dev can answer get their own section instead of becoming guesses.
 - **Plan gate.** One approval, then it runs to the end without stopping.
 - **Rules are enforced, not requested.** While the skill runs, a hook blocks edits outside `qa-runs/` (it reports, never fixes), state-changing HTTP calls to real hosts, attack and load tools, and `test.only`/`test.skip`. Rules without enforcement are wishes.
 - **Release gate + delta.** The report blocks on Critical/High by default, takes waivers that need a reason and an expiry (expired ones stop applying), has a strict mode, and exits 1 for CI with `--gate`. From the second run it shows **regressions**, **new** and **fixed** gaps.
@@ -48,6 +49,7 @@ You choose a depth (Quick / Standard / Deep), the environment (production read-o
 | `test-plan.md`, `app-profile.json` | What it understood and what it planned |
 | `report.html` | Verdict, coverage, gaps filterable by severity and category, screenshots |
 | `report.md`, `findings.csv`, `findings.json` | The same results for sharing and Jira |
+| `test-cases.csv` | When requirements were given: every test case with steps, Verify lines, status and linked gaps, ready for Google Sheets |
 | `field-matrix.json` | Every field × edge case: pass / gap / not tested |
 | `suite/` | Playwright + TypeScript: page objects, smoke, journeys, `test.fail()` regressions, opt-in visual |
 
@@ -65,7 +67,8 @@ You choose a depth (Quick / Standard / Deep), the environment (production read-o
 ## Test the agent
 
 ```bash
-node evals/regression-check.mjs     # 59 deterministic checks (65 with CutoverGate installed), ~2 min
+node evals/regression-check.mjs     # 61 deterministic checks (67 with CutoverGate installed), ~2 min
+node evals/requirements-check.mjs   # 20 traceability checks, no browser, ~1 s
 ```
 
 See [`evals/README.md`](evals/README.md) for the LLM-graded behaviour cases.
@@ -93,6 +96,7 @@ MIT © Vered Li
 - **אכיפה, לא בקשה:** hook שחוסם עריכה מחוץ ל-qa-runs, בקשות POST לאתרים אמיתיים, כלי תקיפה ועומס, ו-test.skip.
 - **שער שחרור ודלתא:** פטורים עם סיבה ותאריך תפוגה, מצב קפדני, ומההרצה השנייה: רגרסיות, פערים חדשים ופערים שתוקנו.
 - **QA להגירות אתרים:** בדיקת מפת הפניות (301) ובדיקת קבצים מקושרים (PDF וכו'). כשמותקן [CutoverGate](https://github.com/veredlipimi/cutovergate), הבדיקה רצה דרכו, ו-`cutovergate qa` מריץ את הסוכן על עמודי היעד אחרי שהשער עבר.
+- **מעקב דרישות:** נותנים לו user stories, קריטריוני קבלה, הערות עיצוב או Test Plan קיים. הוא כותב מקרי בדיקה רק למה שכתוב בהם, מריץ אותם, ומציג לכל דרישה את מקרי הבדיקה, הסטטוס (PASS, FAIL, PARTIAL, NOT IMPLEMENTED, NOT VERIFIABLE, NOT TESTED) והפערים. FAIL בלי פער מקושר, או דרישה בלי מקרה בדיקה, מסומנים בדוח. מקרי הבדיקה יוצאים גם כ-CSV מוכן ל-Google Sheets, ושאלות פתוחות למוצר ולפיתוח מקבלות סעיף משלהן.
 - **דוח בעברית**, ו-`test.fail()` לכל פער שזוהה.
 
 **התקנה:**

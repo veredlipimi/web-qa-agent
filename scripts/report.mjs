@@ -7,6 +7,7 @@ import path from 'node:path';
 import { parseArgs, need, readJson, writeJson, SEVERITY_ORDER } from './lib.mjs';
 import { localizeFinding, heString } from './i18n-he.mjs';
 import { loadGateConfig, evaluateGate, computeDelta } from './gate.mjs';
+import { loadTraceability, testCasesCsv } from './requirements.mjs';
 
 const args = parseArgs();
 const run = need(args, 'run', 'run folder');
@@ -31,7 +32,9 @@ const T = {
     v: { stop: 'Not ready to ship — critical gaps identified', risk: 'Ship only with the High gaps accepted or fixed', ok: 'No blocking gaps identified' },
     affected: 'Affected', none: 'None', byCat: 'By category', reason: 'Reason', fix: 'Suggested remediation (for the dev team)', verify: 'needs verification',
     coverage: 'Coverage', tested: 'Tested', notTested: 'Not tested', blocked: 'Blocked', scoped: 'in the tested scope only', covNote: 'A clean result covers only what was tested. Not-tested and blocked checks are not passes.',
-    gate: 'Release gate', waived: 'waived', delta: 'Since the previous run', regressions: 'Regressions (were fixed, failing again)', added: 'New gaps', fixed: 'Fixed', expiredW: 'Expired waivers (no longer applied)', strictB: 'Strict mode: categories with untested checks' },
+    gate: 'Release gate', waived: 'waived', delta: 'Since the previous run', regressions: 'Regressions (were fixed, failing again)', added: 'New gaps', fixed: 'Fixed', expiredW: 'Expired waivers (no longer applied)', strictB: 'Strict mode: categories with untested checks',
+    pre: 'Preconditions', req: 'Requirement', type: 'Type', impact: 'Impact / risk', questions: 'Open questions for product / dev', trace: 'Requirements traceability',
+    traceNote: 'Each requirement → the test cases that cover it → the result. Judged from what a user can see and do, not from source code.', cases: 'Test cases', status: 'Status', reqWarn: 'Traceability warnings', reqPassed: 'requirements pass' },
   he: { summary: 'תקציר', verdict: 'שורה תחתונה', findings: 'פערים שזוהו', sev: 'חומרה', cat: 'קטגוריה',
     where: 'איפה', steps: 'צעדים לשחזור', expected: 'צפוי', actual: 'בפועל', evidence: 'ראיות',
     notCovered: 'לא נבדק', dismissed: 'נפסל בטריאז׳', assumptions: 'הנחות', scope: 'היקף',
@@ -39,7 +42,9 @@ const T = {
     v: { stop: 'לא מוכן לעלייה — זוהו פערים קריטיים', risk: 'לעלות רק אם פערי ה-High תוקנו או התקבלו', ok: 'לא זוהו פערים חוסמים' },
     affected: 'מופעים', none: 'אין', byCat: 'לפי קטגוריה', reason: 'סיבה', fix: 'המלצה לתיקון (לצוות הפיתוח)', verify: 'דורש אימות',
     coverage: 'כיסוי', tested: 'נבדק', notTested: 'לא נבדק', blocked: 'חסום', scoped: 'בטווח שנבדק בלבד', covNote: 'תוצאה נקייה מתייחסת רק למה שנבדק. בדיקות שלא רצו או נחסמו אינן הצלחה.',
-    gate: 'שער שחרור', waived: 'פטור', delta: 'מאז ההרצה הקודמת', regressions: 'רגרסיות (תוקנו וחזרו)', added: 'פערים חדשים', fixed: 'תוקנו', expiredW: 'פטורים שפג תוקפם (לא חלים)', strictB: 'מצב קפדני: קטגוריות עם בדיקות שלא רצו' },
+    gate: 'שער שחרור', waived: 'פטור', delta: 'מאז ההרצה הקודמת', regressions: 'רגרסיות (תוקנו וחזרו)', added: 'פערים חדשים', fixed: 'תוקנו', expiredW: 'פטורים שפג תוקפם (לא חלים)', strictB: 'מצב קפדני: קטגוריות עם בדיקות שלא רצו',
+    pre: 'תנאים מקדימים', req: 'דרישה', type: 'סוג', impact: 'השפעה / סיכון', questions: 'שאלות פתוחות למוצר / לפיתוח', trace: 'מעקב דרישות',
+    traceNote: 'כל דרישה ← מקרי הבדיקה שמכסים אותה ← התוצאה. נבחן לפי מה שמשתמש רואה ועושה, לא לפי קוד המקור.', cases: 'מקרי בדיקה', status: 'סטטוס', reqWarn: 'אזהרות מעקב', reqPassed: 'דרישות עברו' },
 }[lang];
 const SEV_HE = { Critical: 'קריטי', High: 'גבוה', Medium: 'בינוני', Low: 'נמוך', Info: 'מידע' };
 const sevLabel = s => (lang === 'he' ? `${SEV_HE[s]} · ${s}` : s);
@@ -80,6 +85,9 @@ const gaps = [...groups.values()].sort((a, b) =>
 let autoN = 0;
 gaps.forEach(g => { if (!(g.source === 'manual' && g.id)) g.id = `QA-${String(++autoN).padStart(3, '0')}`; });
 
+const trace = loadTraceability(run, gaps.map(g => g.id));
+if (trace) fs.writeFileSync(path.join(run, 'test-cases.csv'), testCasesCsv(trace));
+const questions = (manual.openQuestions || []).map(q => (typeof q === 'string' ? { question: q } : q)).filter(q => q.question);
 const counts = Object.fromEntries(SEVERITY_ORDER.map(s => [s, gaps.filter(g => g.severity === s).length]));
 const byCat = gaps.reduce((a, g) => (a[g.category] = (a[g.category] || 0) + 1, a), {});
 const coverage = [...(auto.coverage || []), ...(fields.coverage || []), ...(manual.coverage || [])];
@@ -113,8 +121,9 @@ const flat = gaps.map(g => ({
   steps: (g.steps || []).join(' → '), expected: g.expected || '', actual: g.actual || '',
   screenshot: g.occurrences.find(o => o.screenshot)?.screenshot || '', details: g.evidence?.details || '',
   confidence: g.confidence || 'confirmed', remediation: g.remediation || '',
+  preconditions: g.preconditions || '', requirement: [].concat(g.requirement || []).join(' | '), type: g.type || '', impact: g.impact || '',
 }));
-writeJson(path.join(run, 'findings.json'), { title, generatedAt: new Date().toISOString(), verdict, counts, coverage: { percent: covPct, tested: covTested, total: covTotal, byCategory: covRows }, gate, delta, gaps, dismissed, notCovered, assumptions });
+writeJson(path.join(run, 'findings.json'), { title, generatedAt: new Date().toISOString(), verdict, counts, coverage: { percent: covPct, tested: covTested, total: covTotal, byCategory: covRows }, gate, delta, gaps, dismissed, notCovered, assumptions, traceability: trace, openQuestions: questions });
 const csvCell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
 const cols = Object.keys(flat[0] || { id: '', severity: '', category: '', title: '' });
 fs.writeFileSync(path.join(run, 'findings.csv'), '﻿' + [cols.join(','), ...flat.map(r => cols.map(c => csvCell(r[c])).join(','))].join('\n'));
@@ -139,13 +148,22 @@ if (suiteResult) md.push(`- ${T.suite}: ${suiteResult.passed ?? '?'} passed, ${s
 md.push('', `## ${T.coverage} — ${covPct}% (${covTested}/${covTotal})`, '', `_${T.covNote}_`, '');
 md.push(`| ${T.cat} | ${T.tested} | ${T.notTested} | ${T.blocked} | ${T.reason} |`, '|---|---|---|---|---|');
 for (const r of covRows) md.push(`| ${r.category} | ${r.tested} | ${r.notTested} | ${r.blocked} | ${r.reasons.slice(0, 3).join('; ').replace(/\|/g, '/')} |`);
+if (trace) {
+  md.push('', `## ${T.trace} — ${trace.passedRequirements}/${trace.requirements.length} ${T.reqPassed}`, '', `_${T.traceNote}_`, '');
+  md.push(`| ${T.req} | ${T.status} | ${T.cases} | ${T.findings} |`, '|---|---|---|---|');
+  for (const r of trace.requirements) md.push(`| ${r.id}: ${String(r.text).replace(/\|/g, '/')} | ${r.status} | ${r.cases.join(', ') || '—'} | ${r.gaps.join(', ') || '—'} |`);
+  md.push('', `${T.cases}: ${Object.entries(trace.counts).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join(' · ')} — \`test-cases.csv\``);
+  if (trace.warnings.length) { md.push('', `**${T.reqWarn}:**`); trace.warnings.forEach(w => md.push(`- ${w.case || w.requirement}: ${w.problem}`)); }
+}
 md.push('', `## ${T.findings}`, '');
 for (const g of gaps) {
   md.push(`### ${g.id} · ${g.severity}${g.confidence === 'verify' ? ` · ${T.verify}` : ''} · ${g.title}`, '');
-  md.push(`*${g.category} · ${g.source === 'manual' ? T.manual : T.auto}${g.ruleId ? ` · ${g.ruleId}` : ''}*`, '');
+  md.push(`*${g.category} · ${g.source === 'manual' ? T.manual : T.auto}${g.ruleId ? ` · ${g.ruleId}` : ''}${g.type ? ` · ${g.type}` : ''}${g.requirement ? ` · ${T.req}: ${[].concat(g.requirement).join(', ')}` : ''}*`, '');
+  if (g.preconditions) md.push(`**${T.pre}:** ${g.preconditions}`, '');
   if (g.steps?.length) { md.push(`**${T.steps}:**`); g.steps.forEach((s, i) => md.push(`${i + 1}. ${s}`)); md.push(''); }
   if (g.expected) md.push(`**${T.expected}:** ${g.expected}  `);
   if (g.actual) md.push(`**${T.actual}:** ${g.actual}`);
+  if (g.impact) md.push('', `**${T.impact}:** ${g.impact}`);
   md.push('', `**${T.affected} (${g.occurrences.length}):**`);
   for (const o of g.occurrences.slice(0, 10)) md.push(`- ${o.page} — ${o.viewport}${o.screenshot ? ` — ![](${o.screenshot})` : ''}`);
   if (g.occurrences.length > 10) md.push(`- … +${g.occurrences.length - 10}`);
@@ -154,6 +172,7 @@ for (const g of gaps) {
   if (g.triageNote) md.push('', `> ${g.triageNote}`);
   md.push('');
 }
+if (questions.length) { md.push(`## ${T.questions}`, ''); questions.forEach(q => md.push(`- ${q.question}${q.for ? ` _(${q.for})_` : ''}${q.related ? ` — ${[].concat(q.related).join(', ')}` : ''}`)); md.push(''); }
 if (assumptions.length) { md.push(`## ${T.assumptions}`, ''); assumptions.forEach(a => md.push(`- ${a}`)); md.push(''); }
 md.push(`## ${T.notCovered}`, ''); if (!notCovered.length) md.push(`- ${T.none}`);
 notCovered.forEach(n => md.push(`- ${[n.page, n.viewport, n.reason].filter(Boolean).join(' — ')}`));
@@ -170,9 +189,10 @@ const gapHtml = g => `
     <span class="id">${g.id}</span>${g.waiver ? `<span class="pill sev-info">${T.waived}</span>` : ''}${g.confidence === 'verify' ? `<span class="pill sev-info">${T.verify}</span>` : ''}
     <h3>${esc(g.title)}</h3>
   </header>
-  <p class="meta">${esc(g.category)} · ${g.source === 'manual' ? T.manual : T.auto}${g.ruleId ? ` · <code>${esc(g.ruleId)}</code>` : ''}</p>
+  <p class="meta">${esc(g.category)} · ${g.source === 'manual' ? T.manual : T.auto}${g.ruleId ? ` · <code>${esc(g.ruleId)}</code>` : ''}${g.type ? ` · ${esc(g.type)}` : ''}${g.requirement ? ` · ${T.req}: ${esc([].concat(g.requirement).join(', '))}` : ''}</p>
+  ${g.preconditions ? `<p><strong>${T.pre}:</strong> ${esc(g.preconditions)}</p>` : ''}
   ${g.steps?.length ? `<h4>${T.steps}</h4><ol>${g.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
-  <dl>${g.expected ? `<dt>${T.expected}</dt><dd>${esc(g.expected)}</dd>` : ''}${g.actual ? `<dt>${T.actual}</dt><dd>${esc(g.actual)}</dd>` : ''}</dl>
+  <dl>${g.expected ? `<dt>${T.expected}</dt><dd>${esc(g.expected)}</dd>` : ''}${g.actual ? `<dt>${T.actual}</dt><dd>${esc(g.actual)}</dd>` : ''}${g.impact ? `<dt>${T.impact}</dt><dd>${esc(g.impact)}</dd>` : ''}</dl>
   ${g.evidence?.details ? `<pre>${esc(g.evidence.details)}</pre>` : ''}
   ${g.remediation ? `<p><strong>${T.fix}:</strong> ${esc(g.remediation)}</p>` : ''}
   ${g.triageNote ? `<p class="note">${esc(g.triageNote)}</p>` : ''}
@@ -238,6 +258,13 @@ ${suiteResult ? `<p style="unicode-bidi:plaintext">${T.suite}: ${suiteResult.pas
 <div class="tablewrap"><table class="cov"><thead><tr><th>${T.cat}</th><th>${T.tested}</th><th>${T.notTested}</th><th>${T.blocked}</th><th>${T.reason}</th></tr></thead><tbody>
 ${covRows.map(r => `<tr><td>${esc(r.category)}</td><td>${r.tested}</td><td class="${r.notTested ? 'warn' : ''}">${r.notTested}</td><td class="${r.blocked ? 'warn' : ''}">${r.blocked}</td><td>${esc(r.reasons.slice(0, 3).join('; '))}</td></tr>`).join('')}
 </tbody></table></div>
+${trace ? `<h2>${T.trace} · ${trace.passedRequirements}/${trace.requirements.length}</h2>
+<p class="meta">${esc(T.traceNote)}</p>
+<div class="tablewrap"><table class="cov"><thead><tr><th>${T.req}</th><th>${T.status}</th><th>${T.cases}</th><th>${T.findings}</th></tr></thead><tbody>
+${trace.requirements.map(r => `<tr><td><strong>${esc(r.id)}</strong> ${esc(r.text)}</td><td class="${r.status === 'PASS' ? '' : 'warn'}">${esc(r.status)}</td><td>${esc(r.cases.join(', ') || '—')}</td><td>${esc(r.gaps.join(', ') || '—')}</td></tr>`).join('')}
+</tbody></table></div>
+<p class="meta">${T.cases}: ${esc(Object.entries(trace.counts).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join(' · '))} · <a href="test-cases.csv">test-cases.csv</a></p>
+${trace.warnings.length ? `<p class="note"><strong>${T.reqWarn}</strong><br>${trace.warnings.map(w => esc(`${w.case || w.requirement}: ${w.problem}`)).join('<br>')}</p>` : ''}` : ''}
 <h2>${T.findings}</h2>
 <div class="filters" role="group">
   <button aria-pressed="true" data-f="all">All · ${gaps.length}</button>
@@ -245,6 +272,7 @@ ${covRows.map(r => `<tr><td>${esc(r.category)}</td><td>${r.tested}</td><td class
   ${Object.entries(byCat).map(([c, n]) => `<button aria-pressed="false" data-f="cat:${esc(c)}">${esc(c)} · ${n}</button>`).join('')}
 </div>
 <section id="gaps">${gaps.map(gapHtml).join('') || `<p>${T.none}</p>`}</section>
+${questions.length ? `<h2>${T.questions}</h2><ul class="plain">${questions.map(q => `<li>${esc(q.question)}${q.for ? ` <span class="meta">(${esc(q.for)})</span>` : ''}${q.related ? ` — ${esc([].concat(q.related).join(', '))}` : ''}</li>`).join('')}</ul>` : ''}
 ${assumptions.length ? `<h2>${T.assumptions}</h2><ul class="plain">${assumptions.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
 <h2>${T.notCovered}</h2><ul class="plain">${notCovered.map(n => `<li>${esc([n.page, n.viewport, n.reason].filter(Boolean).join(' — '))}</li>`).join('') || `<li>${T.none}</li>`}</ul>
 ${dismissed.length ? `<h2>${T.dismissed}</h2><ul class="plain">${dismissedGrouped.map(d => `<li>${esc(d.title)}${d.n > 1 ? ` (×${d.n})` : ''} — ${esc(d.reason)}</li>`).join('')}</ul>` : ''}
@@ -264,6 +292,7 @@ fs.writeFileSync(path.join(run, 'report.html'), html);
 
 console.log(`[report] ${gaps.length} gaps (${SEVERITY_ORDER.map(s => `${s} ${counts[s]}`).join(', ')}), ${dismissed.length} dismissed`);
 console.log(`[report] ${verdict}`);
+if (trace) console.log(`[report] requirements: ${trace.passedRequirements}/${trace.requirements.length} pass · ${trace.cases.length} test cases${trace.warnings.length ? ` · ${trace.warnings.length} traceability warnings` : ''} → test-cases.csv`);
 console.log(`[report] gate ${gate.status}${gate.blocking.length ? `: ${gate.blocking.map(b => b.id).join(', ')}` : ''}${delta ? ` | delta: ${delta.regressions.length} regressions, ${delta.added.length} new, ${delta.fixed.length} fixed` : ''}`);
 console.log(`[report] ${path.join(run, 'report.html')}`);
 

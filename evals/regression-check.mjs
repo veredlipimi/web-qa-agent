@@ -106,6 +106,8 @@ results.push({ id: 'H03', what: 'delta: gap that came back is a regression', ok:
 // ---- Guard unit tests
 let guardOk = true; try { execFileSync(process.execPath, [path.join(here, 'guard-check.mjs')], { stdio: 'pipe' }); } catch { guardOk = false; }
 results.push({ id: 'K01', what: 'enforcement guard: all unit checks pass', ok: guardOk });
+let reqOk = true; try { execFileSync(process.execPath, [path.join(here, 'requirements-check.mjs')], { stdio: 'pipe' }); } catch { reqOk = false; }
+results.push({ id: 'T00', what: 'requirements traceability: all unit checks pass (requirements-check.mjs)', ok: reqOk });
 
 const failed = results.filter(r => !r.ok);
 for (const r of results) console.log(`${r.ok ? '✓' : '✘'} ${r.id}  ${r.what}`);

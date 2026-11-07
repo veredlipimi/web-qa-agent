@@ -23,6 +23,7 @@ runs preflight → crawl → audit → field-matrix → report, and checks `expe
 | `G01–G05` | Gate: valid waiver applied, expired waiver ignored, waiver without reason rejected, FAIL with Critical, `--gate` exit code |
 | `H01–H03` | Delta across three runs: fixed, new, regression |
 | `K01` | Enforcement guard unit tests (`guard-check.mjs`, 12 cases) |
+| `T00` | Requirements traceability (`requirements-check.mjs`, 20 cases, no browser): roll-up rules, the honesty warnings (FAIL without a gap, NOT_TESTED without a reason, unknown requirement, uncovered requirement), the Sheets CSV, and the report sections |
 
 When you add a check: plant a gap in `demo-app/server.mjs`, add a `find` line, **and**
 a correct control with a `notFind` line. A check without a control will drift into noise.
