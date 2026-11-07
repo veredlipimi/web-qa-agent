@@ -2,6 +2,14 @@ import { defineConfig, devices } from '@playwright/test';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const launchOptions = process.env.QA_CHROME_PATH ? { executablePath: process.env.QA_CHROME_PATH } : {};
+// Opt-in cross-browser: QA_BROWSERS=firefox,webkit (needs `npx playwright install firefox webkit`).
+// WebKit is the engine behind Safari, including every browser on iPhone.
+const extraBrowsers = String(process.env.QA_BROWSERS || '').split(',').map(s => s.trim()).filter(Boolean);
+const EXTRA: Record<string, any> = {
+  firefox: { name: 'firefox', grepInvert: /@visual/, use: { ...devices['Desktop Firefox'], viewport: { width: 1440, height: 900 } } },
+  webkit: { name: 'webkit', grepInvert: /@visual/, use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } } },
+  'mobile-safari': { name: 'mobile-safari', grepInvert: /@visual/, use: { ...devices['iPhone 14'] } },
+};
 
 export default defineConfig({
   testDir: './tests',
@@ -24,5 +32,6 @@ export default defineConfig({
     { name: 'mobile', grepInvert: /@visual/, use: { ...devices['Pixel 7'], launchOptions } },
     // Opt-in: npx playwright test --project=visual
     { name: 'visual', grep: /@visual/, use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, launchOptions } },
+    ...extraBrowsers.filter(b => EXTRA[b]).map(b => EXTRA[b]),
   ],
 });

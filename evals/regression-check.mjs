@@ -69,6 +69,11 @@ results.push({ id: 'R03', what: 'report.html, report.md, findings.csv exist', ok
 results.push({ id: 'R04', what: 'no node_modules in run folder', ok: !fs.existsSync(path.join(run, 'node_modules')) });
 results.push({ id: 'R05', what: 'every gap has steps + expected + actual', ok: out.gaps.every(g => g.steps?.length && g.expected && g.actual) });
 results.push({ id: 'R06', what: 'every gap has a screenshot or details', ok: out.gaps.every(g => g.occurrences.some(o => o.screenshot) || g.evidence?.details) });
+results.push({ id: 'R07', what: 'Chromium-only run says Firefox/Safari were not tested', ok: out.browsers?.includes('chromium') && out.notCovered.some(n => /Firefox and Safari \(WebKit\) not tested/.test(n.reason || '')) });
+const apiInv = out.apiInventory || [];
+const ep = p => apiInv.find(r => r.method === 'GET' && r.path === p);
+results.push({ id: 'R08', what: 'API inventory: /api/reviews listed with its 500, first (problems first)', ok: ep('/api/reviews')?.statuses?.['500'] > 0 && apiInv[0]?.path === '/api/reviews' });
+results.push({ id: 'R09', what: 'API inventory: /api/stock grouped (≥3 calls in one row) + api-endpoints.csv', ok: ep('/api/stock')?.calls >= 3 && fs.existsSync(path.join(run, 'api-endpoints.csv')) });
 
 // ---- Redirect map classification
 const red = JSON.parse(fs.readFileSync(path.join(run, 'findings.redirects.json'), 'utf8'));
@@ -106,6 +111,8 @@ results.push({ id: 'H03', what: 'delta: gap that came back is a regression', ok:
 // ---- Guard unit tests
 let guardOk = true; try { execFileSync(process.execPath, [path.join(here, 'guard-check.mjs')], { stdio: 'pipe' }); } catch { guardOk = false; }
 results.push({ id: 'K01', what: 'enforcement guard: all unit checks pass', ok: guardOk });
+let reqOk = true; try { execFileSync(process.execPath, [path.join(here, 'requirements-check.mjs')], { stdio: 'pipe' }); } catch { reqOk = false; }
+results.push({ id: 'T00', what: 'requirements traceability: all unit checks pass (requirements-check.mjs)', ok: reqOk });
 
 const failed = results.filter(r => !r.ok);
 for (const r of results) console.log(`${r.ok ? '✓' : '✘'} ${r.id}  ${r.what}`);
