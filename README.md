@@ -10,6 +10,7 @@ Give it a URL. It asks its questions once, shows a test plan, then crawls, audit
 
 - **Not tested ≠ passed.** Every check ends as *tested*, *not tested* or *blocked*, with a reason (login wall, timeout, missing test data, submit not allowed). The report shows a coverage table, and the verdict says "in the tested scope" unless coverage is 100%. A clean report is never mistaken for full coverage.
 - **Field integrity matrix.** Every form field is checked for type, length and format, then filled with edge values: whitespace-only, Hebrew and mixed-direction names, Israeli phone formats, malformed emails, maxlength+1. It records whether the UI rejects what it should and accepts what it should. Nothing is ever submitted: non-GET requests are blocked and native submission is prevented.
+- **False success and double submit.** Each form is submitted with the response simulated inside the browser: 200, double click, 500, and offline. A success message after a failure, or two requests from one double click, is a gap. Nothing reaches the server, so this is safe on production.
 - **RTL / Hebrew first.** `dir`, alignment and input direction are checked automatically, with a full manual checklist for mirroring, bidi text, formats and microcopy.
 - **API / network.** 5xx and 4xx responses, failed, slow and duplicate calls, plus fault injection in exploratory runs (500, slow network, offline, expired session). Every endpoint the pages call is listed in an API inventory (method, path, statuses, timings), the base for API test scenarios.
 - **Honest about browsers.** The audit runs on Chromium; on Deep the suite also runs on Firefox and WebKit/Safari. Any browser that didn't run is listed as not covered, so a pass on Chrome is never read as a pass on an iPhone.
@@ -92,6 +93,7 @@ MIT © Vered Li
 **מה מייחד אותו:**
 - **"לא נבדק" אינו "עבר".** לכל בדיקה יש סטטוס: נבדק, לא נבדק או חסום, עם סיבה. בדוח יש טבלת כיסוי, והשורה התחתונה נכתבת "בטווח שנבדק".
 - **מטריצת שדות:** גודל, אורך ופורמט של כל שדה, עם ערכי קצה בעברית ובפורמטים ישראליים, בלי לשלוח אף טופס.
+- **הצלחה מזויפת ולחיצה כפולה:** הסוכן שולח כל טופס כשהתשובה מדומה בדפדפן: 500, ניתוק ולחיצה כפולה. אם מופיעה הודעת הצלחה אחרי כשל, או שלחיצה כפולה שולחת שתי בקשות, זה פער. שום בקשה לא מגיעה לשרת.
 - **RTL ועברית:** בדיקות אוטומטיות של dir, יישור וכיוון שדות קלט, וצ׳קליסט ידני מלא.
 - **API ורשת:** קריאות שנכשלות, איטיות או כפולות, והזרקת תקלות.
 - **Evals לסוכן עצמו:** חנות דמו בעברית עם 20 פערים מתוכננים ו-13 בדיקות נגד false positives.

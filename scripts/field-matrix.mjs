@@ -60,7 +60,12 @@ await ctx.addInitScript(() => {
   HTMLFormElement.prototype.requestSubmit = function () { this.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); };
   void orig;
 });
-await ctx.route('**/*', r => (r.request().method() === 'GET' || r.request().method() === 'HEAD' ? r.continue() : r.abort('blockedbyclient')));
+let actionRequests = 0; // a submit that reaches the network means the client accepted the input
+await ctx.route('**/*', r => {
+  if (r.request().method() === 'GET' || r.request().method() === 'HEAD') return r.continue();
+  actionRequests++;
+  return r.abort('blockedbyclient');
+});
 
 const forms = [];
 for (const p of sitemap.pages.filter(p => p.status === 200)) for (const f of p.forms || []) {
@@ -124,6 +129,7 @@ for (const { page: url, form, fields } of forms.slice(0, maxForms)) {
         await page.waitForTimeout(700);
         const errorsIdle = await visibleErrors(page, sel, form.index);
         const submit = formLoc.locator('button:not([type=button]):not([type=reset]), input[type=submit]').first();
+        actionRequests = 0;
         if (await submit.count()) await submit.click({ timeout: 3000 }).catch(() => {});
         await page.waitForTimeout(500);
         const obs = await el.evaluate((node) => ({
@@ -144,7 +150,10 @@ for (const { page: url, form, fields } of forms.slice(0, maxForms)) {
           && (fieldKey.some(k => freshText.includes(k)) || !fields.some(o => o !== f && [o.name, o.id].filter(Boolean).some(k => freshText.includes(k))));
         obs.uiError = !!(nearNew || globalNew || obs.ariaInvalid);
         if (obs.uiError) obs.errorText = (nearNew ? errorsAfter.near : freshText || errorsAfter.global).slice(0, 120);
-        obs.rejected = !obs.valid || obs.uiError;
+        obs.requestSent = actionRequests > 0;
+        // If the form sent its request, the client accepted the value; text that appears afterwards
+        // ("thanks!" or "network error" from the blocked request) is not a validation message.
+        obs.rejected = !obs.valid || (obs.uiError && !obs.requestSent);
         obs.submitAttempted = submitted > 0 && obs.valid;
         Object.assign(cell, { observed: obs });
 

@@ -206,7 +206,21 @@ non-GET request is blocked and native submission is prevented.
 
 ```bash
 node <skill>/scripts/field-matrix.mjs --sitemap <run>/sitemap.json --out <run>
+node <skill>/scripts/action-probes.mjs --sitemap <run>/sitemap.json --out <run>
 ```
+
+**Action probes** (`action-probes.mjs`) fill each form with valid data and answer every
+request the submit triggers inside the browser. Nothing reaches the server, so this is safe on
+production too. Each form gets four runs:
+- a 200 baseline, which checks whether success is detectable at all;
+- a double click, where two identical requests are a gap (High when the flow is order or payment);
+- a 500 response;
+- a network failure.
+
+A success message after a 500 or a network failure is a **false success** (High). No feedback at
+all is Medium, and is only reported when the baseline proved success is detectable. Forms that
+post natively (server-rendered) are recorded as not tested, with that reason: their failure
+handling needs staging.
 
 Per field it checks type / inputmode / maxlength / autocomplete / real label, then fills
 edge values (whitespace-only, Hebrew and mixed-direction names, bad and valid Israeli
@@ -341,7 +355,7 @@ set `QA_CHROME_PATH` to an installed Chrome/Chromium; `QA_HEADED=1` shows the br
 
 ## Files
 
-- `scripts/preflight.mjs`, `crawl.mjs`, `overview.mjs`, `audit.mjs`, `field-matrix.mjs`,
+- `scripts/preflight.mjs`, `crawl.mjs`, `overview.mjs`, `audit.mjs`, `field-matrix.mjs`, `action-probes.mjs`,
   `redirect-check.mjs`, `save-auth.mjs`, `scaffold-suite.mjs`, `suite-summary.mjs`,
   `report.mjs` (+ `gate.mjs`, `i18n-he.mjs`, `requirements.mjs`, `api-inventory.mjs`), `package.mjs`, `setup.mjs`, `lib.mjs`
 - `hooks/guard.mjs` — the enforcement hook declared in the frontmatter

@@ -16,7 +16,8 @@ runs preflight → crawl → audit → field-matrix → report, and checks `expe
 |---|---|
 | `find` (E01–E16, F01–F04) | Every planted gap is identified: API 500, duplicate calls, reflected search, soft 404, missing `dir=rtl`, left-aligned Hebrew, mobile overflow, placeholder-only field, whitespace-only and Hebrew-name validation, `type=text` phone, `+972` rejected, exposed `.env`, cookie flags, headers |
 | `notFind` (N01–N09) | **False-positive guards.** Control pages that are correct (`/policy`, `/search-safe`, the labelled email field, valid `qa+probe@` email) must stay clean |
-| `coverage` (C01–C03) | Checks are marked *tested* where they ran |
+| `E17–E18`, `N15–N17` | Action probes: double submit and false success on `/newsletter`; the guarded `/newsletter-safe` control must stay clean |
+| `coverage` (C01–C05) | Checks are marked *tested* where they ran |
 | `R01–R09` | Verdict, coverage %, deliverables, evidence on every gap, no `node_modules`; a Chromium-only run lists Firefox/Safari as not covered; the API inventory groups repeated calls and lists failing endpoints first |
 | `D-*` | Redirect map: PASS, WRONG-STATUS, WRONG-TARGET, MISSING, CHAIN each classified correctly |
 | `D-CG*` | Same map through the CutoverGate engine gives the same classification (runs when CutoverGate is found as a sibling folder or in `$CUTOVERGATE`) |
