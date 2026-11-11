@@ -62,6 +62,7 @@ try {
   const lo = await run('act', '--out', out3, JSON.stringify({ action: 'click', role: 'link', name: 'Logout' }));
   const rm = await run('act', '--out', out3, JSON.stringify({ action: 'click', role: 'link', name: 'Remove listing' }));
   await run('act', '--out', out3, JSON.stringify({ action: 'goto', path: '/api/delete?id=2' }));
+  await run('act', '--out', out3, JSON.stringify({ action: 'goto', path: '/api/deleteAccount' })); // camelCase (verification finding)
   await run('act', '--out', out3, JSON.stringify({ action: 'goto', path: '/lab' }));
   await run('act', '--out', out3, JSON.stringify({ action: 'click', role: 'button', name: 'Open live chat' }));
   await new Promise(r => setTimeout(r, 800));

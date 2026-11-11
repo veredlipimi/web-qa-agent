@@ -15,7 +15,7 @@ export function checkBash(cmd) {
   // State-changing HTTP from the shell to non-local hosts
   const http = c.match(/\b(curl|wget|http|https|xh)\b[^|;&]*/gi) || [];
   for (const seg of http) {
-    const mutating = /(-X\s*|--request\s+|--method[=\s])['"]?(POST|PUT|PATCH|DELETE)\b|\s(-d|--data(-raw|-binary|-urlencode|-ascii)?|-F|--form(-string)?|--json|-T|--upload-file|--post-data|--post-file|--body-data|--body-file)[\s=]|\b(http|https|xh)\s+(POST|PUT|PATCH|DELETE)\b/i.test(seg);
+    const mutating = /(-X\s*|--request[=\s]+|--method[=\s])['"]?(POST|PUT|PATCH|DELETE)\b|\s(-d|--data(-raw|-binary|-urlencode|-ascii)?|-F|--form(-string)?|--json|-T|--upload-file|--post-data|--post-file|--body-data|--body-file)[\s=]|\b(http|https|xh)\s+(POST|PUT|PATCH|DELETE)\b/i.test(seg);
     if (!mutating) continue;
     const urls = seg.match(/https?:\/\/[^\s'"]+/gi) || [];
     if (urls.length === 0 || urls.some(u => !LOCAL.test(u)))

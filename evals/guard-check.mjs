@@ -27,6 +27,7 @@ const cases = [
   ['block', 'bash', 'node -e "fetch(\'https://shop.example.com/api\', { method: \'POST\' })"'],
   ['allow', 'bash', 'node -e "fetch(\'http://localhost:4321/api\', { method: \'POST\' })"'],
   ['block', 'bash', 'http POST https://shop.example.com/api a=1'],
+  ['block', 'bash', 'curl --request=PUT https://shop.example.com/api/item/1'],
   ['block', 'write', '/Users/v/qa-runs/../Projects/app.js', 'x'],
   ['block', 'write', '/Users/v/qa-runs/r/explore/probe.py', 'from playwright.sync_api import sync_playwright\nwith sync_playwright() as p: p.chromium.launch()'],
   ['block', 'write', '/Users/v/qa-runs/r/explore/p.mjs', "// uses guardedContext() later\nconst b = await chromium.launch(); await b.newContext();"],

@@ -167,7 +167,7 @@ const server = http.createServer((req, res) => {
     const lu = new URL(req.url, 'http://x');
     if (lu.pathname === '/lab-stats') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify(LAB)); }
     if (lu.pathname === '/logout') { LAB.logout++; res.writeHead(302, { location: '/' }); return res.end(); }
-    if (lu.pathname === '/api/delete') { LAB.deleteGet++; res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"deleted":true}'); }
+    if (lu.pathname === '/api/delete' || lu.pathname === '/api/deleteAccount') { LAB.deleteGet++; res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"deleted":true}'); }
     if (lu.pathname.startsWith('/lab') && req.method === 'POST') { LAB.posts++; res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"ok":true}'); }
     if (lu.pathname === '/lab') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
