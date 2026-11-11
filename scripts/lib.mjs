@@ -54,7 +54,9 @@ export async function blockWebSockets(ctx, blocked = []) {
 }
 
 /** true when a GET request should not leave the browser on production. */
-export const isDestructiveGet = (url) => { try { const u = new URL(url); return !ASSET_URL.test(u.pathname) && DESTRUCTIVE_URL.test(u.pathname + u.search); } catch { return false; } };
+// camelCase names (/account/deleteAccount, /user/DeleteAccount) are split into words before matching.
+const splitCamel = s => s.replace(/([a-z0-9])([A-Z])/g, '$1-$2');
+export const isDestructiveGet = (url) => { try { const u = new URL(url); return !ASSET_URL.test(u.pathname) && DESTRUCTIVE_URL.test(splitCamel(u.pathname + u.search)); } catch { return false; } };
 
 // The only way an ad-hoc exploration script may open a browser context (the guard hook enforces it):
 // main-frame navigations stay on `origin`, and on production every non-GET request is blocked.
