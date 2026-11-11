@@ -166,249 +166,38 @@ category in the matrix has an outcome.
 
 ### Phase 3 — Automated audit
 
-```bash
-node <skill>/scripts/audit.mjs --sitemap <run>/sitemap.json --out <run> [--viewports mobile,tablet,desktop]
-```
-
-Per page × viewport it collects: console errors and uncaught exceptions; failed, 4xx/5xx,
-slow (>2s) and duplicate API requests; axe-core WCAG 2.1 A/AA violations; LCP, CLS, TTFB,
-page weight; horizontal overflow, overlapping/clipped elements, tiny tap targets; broken
-images and links; soft 404s (unknown URL → 200, or "not found" pages linked from the
-site); SEO basics; passive security headers, cookie flags, mixed content, exposed files,
-and one inert reflection marker in GET search/query params; RTL issues. Pages are judged
-settled: load + network idle + fonts ready + scrolled through for lazy content. Output:
-`<run>/findings.auto.json` + `<run>/screenshots/`. It also keeps an **API inventory**: every
-XHR/fetch endpoint the pages called (method, normalized path, query keys, statuses,
-timings, pages) — observed only, never called by you. Use it to spot API risks for the
-plan and as the base for API test scenarios; the report lists it and writes
-`api-endpoints.csv`. Use `--viewports mobile,desktop` for
-Quick; `--skip-reflection` if the user asked for no security checks at all.
-
-Then **triage** in `<run>/triage.json` (format in `references/severity.md`): open the
-screenshots for every High/Critical one, re-check every visual/layout finding after a
-fresh reload (drop it if it does not reproduce), reproduce anything marked
-`confidence: "verify"` by hand and either confirm it (set severity) or dismiss it with a
-reason, and raise severity for gaps on key journeys.
-
-**Migration?** If the user gave a redirect map, verify it against the live origin:
-
-```bash
-node <skill>/scripts/redirect-check.mjs --map <map.csv> --origin <origin> --out <run>
-```
-
-Every old URL is classified PASS · WRONG-TARGET · WRONG-STATUS (302 where 301 was
-expected) · CHAIN · MISSING · ERROR (plus LOOP and TARGET-BROKEN with CutoverGate).
-ERRORs are not-tested, never passes.
-
-If [CutoverGate](https://github.com/veredlipimi/cutovergate) is installed (`$CUTOVERGATE`,
-`~/cutovergate`), the script uses it as the engine automatically. The classification is the
-same, and the run also gets CutoverGate's exceptions (`--exceptions <file>`), its delta and
-its own redirect report (path in `findings.redirects.json` → `reports.html`). Mention that
-report in the final message. Excepted redirects are documented decisions: don't report
-them as gaps.
-
-If the user starts from CutoverGate (`cutovergate qa …`), the automated pass has already
-run on the destination pages. Its run folder has `targets.txt` and `claude-prompt.md`.
-Continue from Phase 4 in that folder, scoped to `targets.txt`, and don't re-crawl the whole site.
+Run preflight, crawl, overview and audit; triage the automated findings; migration redirect checks.
+**Before you start this phase, Read `references/phases/phase-3-audit.md`.** It holds the commands, options and reporting rules for this phase. Don't work from memory of an earlier run.
 
 ### Phase 4 — Field matrix, exploratory & edge cases
 
-First the automated field-integrity matrix (Standard/Deep). It never submits: every
-non-GET request is blocked and native submission is prevented.
-
-```bash
-node <skill>/scripts/field-matrix.mjs --sitemap <run>/sitemap.json --out <run>
-node <skill>/scripts/action-probes.mjs --sitemap <run>/sitemap.json --out <run>
-```
-
-**Secrets in client code** (`secret-scan.mjs`). This reads the JavaScript that every visitor
-downloads (script files and inline scripts) and looks for live credentials:
-- Stripe secret keys, AWS keys, private keys;
-- OpenAI, Anthropic and GitHub tokens, Slack, SendGrid and Twilio keys;
-- service-role JWTs, such as a Supabase `service_role` token.
-
-Keys that are public by design are left alone: Stripe `pk_`, anon JWTs, and Google keys
-(reported as Info, to verify restrictions). A public source map is reported as Low. Values are
-redacted to the first and last 4 characters, and never appear in full (rule 8). This matters
-most for apps built with AI app builders, where a secret key in the frontend is a common gap.
-
-```bash
-node <skill>/scripts/secret-scan.mjs --sitemap <run>/sitemap.json --out <run>
-```
-
-**Visual review** (`visual-sheets.mjs`). This produces one image per page, with the desktop
-and mobile views side by side:
-
-```bash
-node <skill>/scripts/visual-sheets.mjs --sitemap <run>/sitemap.json --out <run> --max-pages 20
-```
-
-Read every sheet in `<run>/visual/`. Report only what a user would see as broken and that
-the DOM checks can't catch: a wrong or broken image, text that is cut off or overlapping,
-an empty area, content hidden behind a fixed header, or a mobile layout that falls apart.
-
-Record each gap in `findings.manual.json` with `ruleId: "visual-review"` and the sheet as the
-screenshot. This is your judgement of an image, so `report.mjs` forces `confidence:
-"verify"`. Never mark a page as passing because it "looks fine". Instead, add a `coverage`
-entry (category `Visual`, tested) for each sheet you reviewed.
-
-**Action probes** (`action-probes.mjs`) fill each form with valid data and answer every
-request the submit triggers inside the browser. Nothing reaches the server, so this is safe on
-production too. Each form gets four runs:
-- a 200 baseline, which checks whether success is detectable at all;
-- a double click, where two identical requests are a gap (High when the flow is order or payment);
-- a 500 response;
-- a network failure.
-
-A success message after a 500 or a network failure is a **false success** (High). No feedback at
-all is Medium, and is only reported when the baseline proved success is detectable. Forms that
-post natively (server-rendered) are recorded as not tested, with that reason: their failure
-handling needs staging.
-
-Per field it checks type / inputmode / maxlength / autocomplete / real label, then fills
-edge values (whitespace-only, Hebrew and mixed-direction names, bad and valid Israeli
-phone formats, malformed and valid emails, maxlength+1) and records whether the UI rejects
-what it should and accepts what it should. Output: `field-matrix.json` (every cell:
-pass / gap / not-tested) and `findings.fields.json`. Dynamic gaps are
-`confidence: "verify"` — server-side validation may still catch them; say so.
-
-Then hands-on. Use `references/exploratory-heuristics.md` and `references/edge-case-data.md`.
-
-**Interactive steps: `explore.mjs`.** You choose one action at a time, and the script
-decides whether it is allowed:
-
-```bash
-node <skill>/scripts/explore.mjs start --url <page> --out <run> [--prod] --max-steps 40
-node <skill>/scripts/explore.mjs act --out <run> '{"action":"click","role":"button","name":"Add to cart"}'
-node <skill>/scripts/explore.mjs look --out <run>
-node <skill>/scripts/explore.mjs finish --out <run> --reason "cart journey done"
-```
-
-- **Actions:** `click`, `fill`, `select`, `press`, `goto` (same-origin path), `back`, `reload`
-  and `finish`. Targets are given by role plus the exact accessible name, and only a single
-  match is accepted.
-- **Rejections** (exit 3): the action is not allowed, the name is ambiguous, or the step
-  budget is spent. Rejected actions count against the budget. If a name is ambiguous, refine
-  it; never guess between look-alike elements.
-- **Use `--prod` on production.** It blocks every non-GET request.
-- **Evidence:** `<run>/explore/history.json` and `trace.zip`. Cite them in findings.
-
-**Scripted checks** (fault injection, timing, assertions): write a short script in
-`<run>/explore/` that opens its context with `guardedContext()`. Fault routes added after it
-must `fulfill`/`abort` (or `fallback()`), never `continue()` a write. Assert the expected
-result **in code**, and compute expected values yourself (totals, counts) rather than
-copying them from the page. For each key journey and each form, cover at least:
-
-- Happy path end to end (stop before final submit on production — rule 7).
-- Validation: empty, too long, wrong format, whitespace-only, emoji, Hebrew/mixed
-  direction text, leading/trailing spaces, pasted values, SQL/HTML-looking strings
-  (as *display* tests only: does the UI render them safely as text?).
-- State: back/forward, refresh mid-flow, double-click submit, slow network
-  (`page.route` with delay), offline (`context.setOffline(true)`), expired session.
-- Empty, loading and error states; what happens on a 500 (`page.route` → 500).
-- Keyboard-only path through the journey (Tab order, visible focus, Esc closes dialogs).
-
-Record each gap in `<run>/findings.manual.json` using the schema in
-`references/finding-schema.md`, with a screenshot, user impact in `actual`, and a
-`remediation` line written as advice for the dev team (never applied by you). If a manual
-finding is the same root cause as an auto one, add `"supersedes": "<ruleId or title>"`.
-Use `getByLabel` to find form fields: if a field can only be reached by placeholder or
-CSS, that is itself an accessibility gap.
-
-Add a `coverage` entry per journey to `findings.manual.json` (category `Exploratory`,
-status tested / not-tested / blocked with reason), so hands-on work shows in the coverage
-table too.
-
-**Test cases from requirements.** Run every case in `test-cases.json` and set its status:
-PASS · FAIL · PARTIAL · NOT_IMPLEMENTED (the behaviour is not reachable in the UI at all) ·
-NOT_VERIFIABLE · NOT_TESTED. FAIL, PARTIAL and NOT_IMPLEMENTED must list the gap IDs that
-show it (`"gaps": ["EXP-003"]`) — no linked gap, no evidence. NOT_VERIFIABLE and
-NOT_TESTED need the reason in `notes`. Give each related finding `"requirement": "AC-2"`.
-When the observation is certain but its cause or reach is not, say so in the finding's
-`impact` with **Likely** / **Possible** — never as fact.
-
-**Reconcile contradictions.** If the field matrix says a case passed and your hands-on run
-says it failed (or the reverse), do not report both: vary one thing at a time (value
-length, character class, submit vs blur) until you know the cause, then report the cause
-once and note which tool was wrong. A tool that was wrong is itself worth a line in
-"Assumptions".
-
-If `references/rtl-checklist.md` applies (RTL detected or requested), walk it on at least
-the home page and every key journey page at mobile and desktop.
+Field matrix, secret scan, action probes (false success, double submit), visual review sheets, then hands-on exploration with `explore.mjs` or `guardedContext()` scripts.
+**Before you start this phase, Read `references/phases/phase-4-explore.md`.** It holds the commands, options and reporting rules for this phase. Don't work from memory of an earlier run.
 
 ### Phase 5 — Generate the automation suite
 
+Scaffold the Playwright suite: page objects, smoke, journeys, `test.fail()` for every identified gap.
+**Before you start this phase, Read `references/phases/phase-5-suite.md`.** It holds the commands, options and reporting rules for this phase. Don't work from memory of an earlier run.
+
+### Phase 5b — Independent verification (Critical and High gaps)
+
+A gap that blocks a release must survive a check by someone who didn't find it. After a first `report.mjs`:
+
 ```bash
-node <skill>/scripts/scaffold-suite.mjs --run <run>
+node <skill>/scripts/verify-pack.mjs --run <run>
 ```
 
-Copies `templates/playwright-suite/` into `<run>/suite/` and fills `tests/pages.json`
-from the crawl. Write one page object per key page in `pages/` (extend `BasePage`), and
-one spec per journey (start from `tests/journey.example.spec.ts`, delete the example
-before delivering). Rules:
-
-- TypeScript, `@playwright/test`, page objects, role/label/test-id locators (no brittle
-  CSS/XPath).
-- Visual regression is opt-in (`--project=visual`, Deep only). A first run only creates a
-  baseline — say so; it detects nothing yet.
-- Web-first assertions (`expect(locator).toBeVisible()`), no fixed sleeps.
-- Credentials from `process.env`, base URL from `BASE_URL`.
-- Each confirmed gap gets a regression test marked `test.fail()` with the finding ID in
-  the title, so it turns green when fixed.
-- Browsers: the audit runs on Chromium only. On Deep, also run the suite on
-  `QA_BROWSERS=firefox,webkit,mobile-safari` (`npx playwright install firefox webkit` first);
-  if those browsers can't be installed, say so. The report lists every browser that did
-  not run under "Not covered" — never imply Safari works because Chrome did.
-- Run it once: `cd <run>/suite && npm install && BASE_URL=<origin> npx playwright test`,
-  then `node <skill>/scripts/suite-summary.mjs --run <run>` (feeds the counts into the
-  report). A smoke failure that matches a known gap is expected — mark it `test.fail()`
-  with the gap ID. Any other failure is a suite issue: fix the test, not the site.
+This writes `<run>/verify/packet.json` and `brief.md`. Hand `brief.md` to a **separate agent**: a subagent with
+no access to this conversation. It sees only the claims and the evidence, tries to **disprove** each gap
+read-only, and writes `<run>/verification.json` with a verdict per gap: `confirmed`, `not-reproduced` or
+`insufficient-evidence`. Then rerun `report.mjs`. A not-reproduced gap moves to *Dismissed*, with the
+verifier's note. Insufficient evidence keeps the gap as `verify`. Never write verdicts yourself; if no
+subagent is available, say in the report that the gaps were not independently verified.
 
 ### Phase 6 — Report
 
-```bash
-node <skill>/scripts/report.mjs --run <run> --title "<site> QA report" [--lang he|en]
-```
-
-With `--lang he` the script renders automated findings in Hebrew itself — never write your
-own translation or post-processing scripts. Write manual findings directly in the report
-language. Merges auto + manual findings, applies `references/severity.md`, and writes
-`report.html`, `report.md`, `findings.csv`, `findings.json`. Before handing over, read
-`report.md` top to bottom and check: every finding has evidence; severities follow the
-rubric; nothing is a duplicate; "Not covered" lists anything skipped.
-
-**Release gate & delta.** The report evaluates a gate (default: blocks on Critical/High).
-A team can put `qa-gate.json` next to the runs:
-
-```json
-{ "blockOn": ["Critical", "High"], "strict": false,
-  "waivers": [{ "match": "QA-004", "reason": "Blog page ships next sprint (TICKET-12)", "expires": "2026-12-01" }] }
-```
-
-Waivers need a reason and should have an expiry; expired waivers stop applying
-automatically, and waived gaps stay in the report with a badge. `strict: true` also
-blocks on any not-tested / blocked check. Every run is saved to `qa-runs/history/`, and
-from the second run on a host the report shows **regressions** (were fixed, failing
-again), **new** gaps and **fixed** gaps. Use `--gate` to make the script exit 1 on FAIL
-(for CI). Never add a waiver yourself — waivers are the team's decision; suggest one in
-the final message if it fits.
-
-Then package the deliverables (excludes `node_modules`, `test-results`, credentials):
-
-```bash
-node <skill>/scripts/package.mjs --run <run> --dest <where the user wants it>
-```
-
-When the run has requirements, the report adds the traceability matrix (requirement →
-test cases → status → gaps), lists traceability warnings (a FAIL with no gap, a
-requirement with no case, an unknown requirement ID), and writes `test-cases.csv` — one
-row per case with numbered steps and bulleted Verify lines in single cells, ready to
-import into Google Sheets. Fix every warning before handing over.
-
-Final message to the user (short): overall verdict (ship / ship with known gaps / don't
-ship), the gate result, the delta if there was a previous run, counts by severity, requirements passed (e.g. 9/12) when there were any, the top 3–5 gaps in one line each, the open questions, what was **not** covered,
-where the files are, and the one-line command to re-run the suite. End with the result —
-no closing offers or questions.
+Build the report (`--lang`), gate, delta and package; the final message.
+**Before you start this phase, Read `references/phases/phase-6-report.md`.** It holds the commands, options and reporting rules for this phase. Don't work from memory of an earlier run.
 
 ## Setup (first run only)
 
@@ -421,7 +210,7 @@ set `QA_CHROME_PATH` to an installed Chrome/Chromium; `QA_HEADED=1` shows the br
 
 ## Files
 
-- `scripts/preflight.mjs`, `crawl.mjs`, `overview.mjs`, `audit.mjs`, `field-matrix.mjs`, `action-probes.mjs`, `visual-sheets.mjs`, `secret-scan.mjs`,
+- `scripts/preflight.mjs`, `crawl.mjs`, `overview.mjs`, `audit.mjs`, `field-matrix.mjs`, `action-probes.mjs`, `visual-sheets.mjs`, `secret-scan.mjs`, `verify-pack.mjs`,
   `redirect-check.mjs`, `save-auth.mjs`, `scaffold-suite.mjs`, `suite-summary.mjs`,
   `report.mjs` (+ `gate.mjs`, `i18n-he.mjs`, `requirements.mjs`, `api-inventory.mjs`), `package.mjs`, `setup.mjs`, `lib.mjs`
 - `hooks/guard.mjs` — the enforcement hook declared in the frontmatter
@@ -431,6 +220,7 @@ set `QA_CHROME_PATH` to an installed Chrome/Chromium; `QA_HEADED=1` shows the br
 - `references/severity.md` — severity rubric (read before triage)
 - `references/finding-schema.md` — finding JSON shape
 - `references/test-plan-template.md`
+- `references/phases/phase-*.md`: per-phase instructions, loaded when the phase starts (keeps the always-loaded context small)
 - `scripts/explore.mjs` (bounded exploratory browser), `guardedContext()` in `scripts/lib.mjs`
 - `references/exploratory-heuristics.md`, `references/edge-case-data.md`
 - `references/rtl-checklist.md`

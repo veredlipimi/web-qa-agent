@@ -22,6 +22,8 @@ const actions = readJson(path.join(run, 'findings.actions.json'), { findings: []
 const secrets = readJson(path.join(run, 'findings.secrets.json'), { findings: [], coverage: [], notCovered: [] });
 for (const k of ['findings', 'coverage', 'notCovered']) fields[k] = [...(fields[k] || []), ...(redirects[k] || []), ...(actions[k] || []), ...(secrets[k] || [])];
 const triage = readJson(path.join(run, 'triage.json'), { dismiss: [], severity: [] });
+// Independent verification (Phase 5b): verdicts from a separate agent that saw only the evidence.
+const verification = readJson(path.join(run, 'verification.json'), { results: [] });
 const assumptions = readJson(path.join(run, 'assumptions.json'), []);
 const suiteResult = readJson(path.join(run, 'suite-result.json'), null);
 const profile = readJson(path.join(run, 'app-profile.json'), null);
@@ -71,6 +73,10 @@ for (const f of raw) {
   if (d) { dismissed.push({ ...f, reason: d.reason }); continue; }
   const s = (triage.severity || []).find(x => matches(f, x.match));
   if (s && SEVERITY_ORDER.includes(s.severity)) { f.triageNote = s.reason; f.severity = s.severity; }
+  const v = (verification.results || []).find(x => x.match && (f.originalTitle === x.match || f.title === x.match));
+  if (v?.verdict === 'not-reproduced') { dismissed.push({ ...f, reason: `Not reproduced by independent verification${v.note ? `: ${v.note}` : ''}` }); continue; }
+  if (v?.verdict === 'insufficient-evidence') { f.confidence = 'verify'; f.verifyNote = `Independent verification: evidence insufficient${v.note ? ` — ${v.note}` : ''}`; }
+  if (v?.verdict === 'confirmed') f.verifyNote = `Confirmed by independent verification${v.note ? ` — ${v.note}` : ''}`;
   kept.push(f);
 }
 
@@ -182,6 +188,7 @@ for (const g of gaps) {
   if (g.evidence?.details) md.push('', '```', g.evidence.details, '```');
   if (g.remediation) md.push('', `**${T.fix}:** ${g.remediation}`);
   if (g.triageNote) md.push('', `> ${g.triageNote}`);
+  if (g.verifyNote) md.push('', `> ${g.verifyNote}`);
   md.push('');
 }
 const statusStr = r => [...Object.entries(r.statuses).map(([k, n]) => `${k}×${n}`), ...(r.failures ? [`failed×${r.failures}`] : [])].join(' ');
@@ -215,6 +222,7 @@ const gapHtml = g => `
   ${g.evidence?.details ? `<pre>${esc(g.evidence.details)}</pre>` : ''}
   ${g.remediation ? `<p><strong>${T.fix}:</strong> ${esc(g.remediation)}</p>` : ''}
   ${g.triageNote ? `<p class="note">${esc(g.triageNote)}</p>` : ''}
+  ${g.verifyNote ? `<p class="note">${esc(g.verifyNote)}</p>` : ''}
   <details><summary>${T.affected}: ${g.occurrences.length}</summary><ul>
     ${g.occurrences.map(o => `<li><a href="${esc(o.page)}" target="_blank" rel="noopener">${esc(o.page)}</a> — ${esc(o.viewport)}${o.actual && o.actual !== g.actual ? ` — ${esc(o.actual)}` : ''}${o.screenshot ? ` — <a href="${esc(o.screenshot)}" target="_blank">screenshot</a>` : ''}</li>`).join('')}
   </ul></details>
