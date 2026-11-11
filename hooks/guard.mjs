@@ -9,8 +9,9 @@
 //     non-local hosts from the shell, and no attack / load-testing tools.
 //  3. No silent failures: no test.only / test.skip / describe.skip in specs —
 //     use notTested(reason) or test.fail() so coverage stays honest.
+//  4. Bounded browser: no MCP browser tools; exploration scripts must use guardedContext().
 
-import { checkBash, checkWrite } from './guard-rules.mjs';
+import { checkBash, checkWrite, checkTool } from './guard-rules.mjs';
 
 
 const chunks = [];
@@ -27,5 +28,6 @@ if (tool === 'Bash') reason = checkBash(ti.command || '');
 else if (tool === 'Write') reason = checkWrite(ti.file_path, ti.content);
 else if (tool === 'Edit' || tool === 'MultiEdit') reason = checkWrite(ti.file_path, ti.new_string || (ti.edits || []).map(e => e.new_string).join('\n'));
 else if (tool === 'NotebookEdit') reason = checkWrite(ti.notebook_path, ti.new_source);
+else if (tool.startsWith('mcp__')) reason = checkTool(tool);
 if (reason) block(reason);
 process.exit(0);
