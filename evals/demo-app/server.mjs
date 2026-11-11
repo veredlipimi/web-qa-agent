@@ -118,9 +118,36 @@ const pages = {
       });
     </script>` + foot,
 
+  // PLANTED: newsletter form — no double-click guard, and shows success whatever the server answers.
+  '/newsletter': () => head('ניוזלטר — סטודיו ברקת') + `<h1>הרשמה לניוזלטר</h1>
+    <form id="nl" method="post" action="/api/subscribe"><label for="nl-email">אימייל</label><input id="nl-email" name="email" type="email" autocomplete="email" required>
+      <button type="submit">הרשמה</button><p id="nl-msg" role="status"></p></form>
+    <script>
+      document.getElementById('nl').addEventListener('submit', e => { e.preventDefault();
+        fetch('/api/subscribe', { method: 'POST', body: new FormData(e.target) }).catch(() => {});
+        document.getElementById('nl-msg').textContent = 'תודה! נרשמת בהצלחה';
+      });
+    </script>` + foot,
+
+  // CONTROL newsletter form: button disabled while in flight, success only on a confirmed response.
+  '/newsletter-safe': () => head('ניוזלטר — סטודיו ברקת') + `<h1>הרשמה לניוזלטר</h1>
+    <form id="ns" method="post" action="/api/subscribe"><label for="ns-email">אימייל</label><input id="ns-email" name="email" type="email" autocomplete="email" required>
+      <button type="submit">הרשמה</button><p id="ns-msg" role="status"></p></form>
+    <script>
+      document.getElementById('ns').addEventListener('submit', async e => { e.preventDefault();
+        const btn = e.target.querySelector('button'), msg = document.getElementById('ns-msg');
+        if (btn.disabled) return; btn.disabled = true; msg.textContent = '';
+        try { const r = await fetch('/api/subscribe', { method: 'POST', body: new FormData(e.target) });
+          const j = r.ok ? await r.json() : null;
+          msg.textContent = j && j.ok ? 'תודה! נרשמת בהצלחה' : 'שגיאה בהרשמה, נסו שוב';
+        } catch { msg.textContent = 'שגיאה בחיבור, נסו שוב'; }
+        finally { btn.disabled = false; }
+      });
+    </script>` + foot,
+
   // CONTROL policy page: correct RTL, labels, one h1, nothing to report except site-wide headers.
   '/policy': () => head('מדיניות פרטיות — סטודיו ברקת') + `<h1>מדיניות פרטיות</h1>
-    <p>אנחנו שומרים רק את המידע שנדרש לטיפול בהזמנה.</p><p><a href="/search-safe">חיפוש באתר</a> · <a href="/booking">קביעת תור</a> · <a href="/files/price-list.pdf">מחירון (PDF)</a> · <a href="/files/terms.pdf">תקנון (PDF)</a></p>` + foot,
+    <p>אנחנו שומרים רק את המידע שנדרש לטיפול בהזמנה.</p><p><a href="/search-safe">חיפוש באתר</a> · <a href="/booking">קביעת תור</a> · <a href="/files/price-list.pdf">מחירון (PDF)</a> · <a href="/files/terms.pdf">תקנון (PDF)</a> · <a href="/newsletter">ניוזלטר</a> · <a href="/newsletter-safe">ניוזלטר (בקרה)</a></p>` + foot,
 };
 
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }

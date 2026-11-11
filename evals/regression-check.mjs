@@ -32,9 +32,10 @@ const step = (name, file, args) => {
 };
 console.log(`Running pipeline against demo-app → ${run}`);
 step('preflight', 'preflight.mjs', ['--url', base + '/', '--out', run]);
-step('crawl', 'crawl.mjs', ['--url', base + '/', '--out', run, '--max-pages', '15']);
+step('crawl', 'crawl.mjs', ['--url', base + '/', '--out', run, '--max-pages', '20']);
 step('audit', 'audit.mjs', ['--sitemap', path.join(run, 'sitemap.json'), '--out', run, '--viewports', 'mobile,desktop']);
 step('field-matrix', 'field-matrix.mjs', ['--sitemap', path.join(run, 'sitemap.json'), '--out', run]);
+step('actions', 'action-probes.mjs', ['--sitemap', path.join(run, 'sitemap.json'), '--out', run, '--max-forms', '8']);
 step('redirects', 'redirect-check.mjs', ['--map', path.join(here, 'demo-app', 'redirects.csv'), '--origin', base_url(), '--out', run, '--engine', 'builtin']);
 // Same map through CutoverGate when it is available (sibling checkout or $CUTOVERGATE): both engines must agree.
 const cgPath = [process.env.CUTOVERGATE, path.join(here, '..', '..', 'cutovergate'), path.join(os.homedir(), 'cutovergate')].find(p => p && fs.existsSync(path.join(p, 'src', 'agent-bridge.mjs')));
@@ -60,7 +61,8 @@ const results = [];
 for (const e of exp.find) results.push({ id: e.id, ok: hit(e).length > 0, what: e.what });
 for (const e of exp.notFind) results.push({ id: e.id, ok: hit(e).length === 0, what: `NOT: ${e.why}` });
 const cov = [...(JSON.parse(fs.readFileSync(path.join(run, 'findings.auto.json'), 'utf8')).coverage || []),
-  ...(JSON.parse(fs.readFileSync(path.join(run, 'findings.fields.json'), 'utf8')).coverage || [])];
+  ...(JSON.parse(fs.readFileSync(path.join(run, 'findings.fields.json'), 'utf8')).coverage || []),
+  ...(JSON.parse(fs.readFileSync(path.join(run, 'findings.actions.json'), 'utf8')).coverage || [])];
 for (const c of exp.coverage) results.push({ id: c.id, what: `coverage ${c.category}=${c.status} on ${c.page}`,
   ok: cov.some(x => x.category === c.category && x.status === c.status && pathOf(x.page).includes(c.page)) });
 results.push({ id: 'R01', what: `verdict contains "${exp.report.verdictContains}"`, ok: out.verdict.includes(exp.report.verdictContains) });

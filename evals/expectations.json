@@ -1,52 +1,304 @@
 {
   "_comment": "Deterministic expectations for scripts run against demo-app. 'find' = must be reported; 'notFind' = false-positive guards; 'coverage' = must be marked. page is a path substring; title is a case-insensitive substring.",
   "find": [
-    { "id": "E01", "rule": "api-5xx",             "page": "/",          "what": "Reviews API returns 500" },
-    { "id": "E02", "rule": "api-duplicate",       "page": "/",          "what": "Stock API called 3× on load" },
-    { "id": "E03", "rule": "console-error",       "page": "/",          "what": "Console error when reviews fail" },
-    { "id": "E04", "rule": "a11y-critical",       "page": "/",          "title": "image-alt", "what": "Hero image without alt" },
-    { "id": "E05", "rule": "sec-reflected-input", "page": "/products",  "what": "Search term echoed unescaped" },
-    { "id": "E06", "rule": "rtl-dir-missing",     "page": "/about",     "what": "Hebrew page without dir=rtl" },
-    { "id": "E07", "rule": "rtl-text-align",      "page": "/about",     "what": "Hebrew paragraph left-aligned" },
-    { "id": "E08", "rule": "layout-overflow",     "page": "/about",     "what": "Wide banner overflows on mobile" },
-    { "id": "E09", "rule": "seo-h1",              "page": "/about",     "what": "Two h1 elements" },
-    { "id": "E10", "rule": "soft-404",            "page": "/team",      "what": "Not-found page returns 200" },
-    { "id": "E11", "rule": "broken-link",         "page": "/blog",      "what": "Nav link to /blog is 404" },
-    { "id": "E12", "rule": "field-no-label",      "page": "/contact",   "title": "שם מלא", "what": "Name field has only a placeholder, no label" },
-    { "id": "E13", "rule": "sec-cookie",          "title": "sessionid", "what": "Session cookie without HttpOnly" },
-    { "id": "E14", "rule": "sec-header",          "title": "Content-Security-Policy", "what": "No CSP" },
-    { "id": "E15", "rule": "sec-version-leak",    "what": "X-Powered-By leaks version" },
-    { "id": "E16", "rule": "sec-exposed-file",    "title": ".env", "what": "/.env is public" },
-    { "id": "F01", "rule": "field-whitespace-only", "page": "/contact", "title": "שם מלא", "what": "Required name accepts spaces only" },
-    { "id": "F02", "rule": "field-hebrew",        "page": "/contact",   "title": "שם מלא", "what": "Name rejects a Hebrew name" },
-    { "id": "F03", "rule": "field-type",          "page": "/contact",   "title": "טלפון", "what": "Phone uses type=text" },
-    { "id": "F04", "rule": "field-il-intl",       "page": "/contact",   "title": "טלפון", "what": "Phone rejects +972 format" },
-    { "id": "E17", "rule": "broken-file",         "title": "terms.pdf", "what": "Linked PDF returns 404" }
+    {
+      "id": "E01",
+      "rule": "api-5xx",
+      "page": "/",
+      "what": "Reviews API returns 500"
+    },
+    {
+      "id": "E02",
+      "rule": "api-duplicate",
+      "page": "/",
+      "what": "Stock API called 3× on load"
+    },
+    {
+      "id": "E03",
+      "rule": "console-error",
+      "page": "/",
+      "what": "Console error when reviews fail"
+    },
+    {
+      "id": "E04",
+      "rule": "a11y-critical",
+      "page": "/",
+      "title": "image-alt",
+      "what": "Hero image without alt"
+    },
+    {
+      "id": "E05",
+      "rule": "sec-reflected-input",
+      "page": "/products",
+      "what": "Search term echoed unescaped"
+    },
+    {
+      "id": "E06",
+      "rule": "rtl-dir-missing",
+      "page": "/about",
+      "what": "Hebrew page without dir=rtl"
+    },
+    {
+      "id": "E07",
+      "rule": "rtl-text-align",
+      "page": "/about",
+      "what": "Hebrew paragraph left-aligned"
+    },
+    {
+      "id": "E08",
+      "rule": "layout-overflow",
+      "page": "/about",
+      "what": "Wide banner overflows on mobile"
+    },
+    {
+      "id": "E09",
+      "rule": "seo-h1",
+      "page": "/about",
+      "what": "Two h1 elements"
+    },
+    {
+      "id": "E10",
+      "rule": "soft-404",
+      "page": "/team",
+      "what": "Not-found page returns 200"
+    },
+    {
+      "id": "E11",
+      "rule": "broken-link",
+      "page": "/blog",
+      "what": "Nav link to /blog is 404"
+    },
+    {
+      "id": "E12",
+      "rule": "field-no-label",
+      "page": "/contact",
+      "title": "שם מלא",
+      "what": "Name field has only a placeholder, no label"
+    },
+    {
+      "id": "E13",
+      "rule": "sec-cookie",
+      "title": "sessionid",
+      "what": "Session cookie without HttpOnly"
+    },
+    {
+      "id": "E14",
+      "rule": "sec-header",
+      "title": "Content-Security-Policy",
+      "what": "No CSP"
+    },
+    {
+      "id": "E15",
+      "rule": "sec-version-leak",
+      "what": "X-Powered-By leaks version"
+    },
+    {
+      "id": "E16",
+      "rule": "sec-exposed-file",
+      "title": ".env",
+      "what": "/.env is public"
+    },
+    {
+      "id": "F01",
+      "rule": "field-whitespace-only",
+      "page": "/contact",
+      "title": "שם מלא",
+      "what": "Required name accepts spaces only"
+    },
+    {
+      "id": "F02",
+      "rule": "field-hebrew",
+      "page": "/contact",
+      "title": "שם מלא",
+      "what": "Name rejects a Hebrew name"
+    },
+    {
+      "id": "F03",
+      "rule": "field-type",
+      "page": "/contact",
+      "title": "טלפון",
+      "what": "Phone uses type=text"
+    },
+    {
+      "id": "F04",
+      "rule": "field-il-intl",
+      "page": "/contact",
+      "title": "טלפון",
+      "what": "Phone rejects +972 format"
+    },
+    {
+      "id": "E17",
+      "rule": "broken-file",
+      "title": "terms.pdf",
+      "what": "Linked PDF returns 404"
+    },
+    {
+      "id": "E17",
+      "rule": "action-double-submit",
+      "page": "/newsletter",
+      "what": "Double-click sends the subscribe request twice"
+    },
+    {
+      "id": "E18",
+      "rule": "action-false-success",
+      "page": "/newsletter",
+      "what": "Success message shown when the server answers 500 / network fails"
+    }
   ],
   "notFind": [
-    { "id": "N01", "rule": "sec-reflected-input", "page": "/search-safe", "why": "Escaped search must not be flagged" },
-    { "id": "N02", "rule": "rtl-dir-missing",     "page": "/policy",      "why": "Correct RTL page" },
-    { "id": "N03", "rule": "rtl-text-align",      "page": "/policy",      "why": "Correct RTL page" },
-    { "id": "N04", "rule": "layout-overflow",     "page": "/policy",      "why": "No overflow on control page" },
-    { "id": "N05", "rule": "soft-404",            "title": "Unknown URLs return HTTP 200", "why": "Server returns real 404s" },
-    { "id": "N06", "rule": "field-plus-tag",      "why": "qa+probe@example.com is a valid email" },
-    { "id": "N07", "rule": "field-type",          "title": "אימייל", "why": "Email already uses type=email" },
-    { "id": "N08", "rule": "broken-image",        "why": "All images load" },
-    { "id": "N09", "rule": "field-no-label",      "title": "אימייל", "why": "Email has a proper label" },
-    { "id": "N10", "rule": "rtl-dir-missing",     "page": "/booking",  "why": "dir=rtl on a wrapper is RTL, not LTR (real-site false positive)" },
-    { "id": "N11", "rule": "field-whitespace-only", "page": "/booking", "why": "JS trim() validation shows error in span.err (real-site false positive)" },
-    { "id": "N12", "rule": "field-letters",       "page": "/booking",  "why": "JS rejects letters in phone with span.err" },
-    { "id": "N13", "rule": "field-too-short",     "page": "/booking",  "why": "JS rejects short phone with span.err" },
-    { "id": "N14", "rule": "field-hebrew",        "page": "/booking",  "why": "an aria-live carousel changing on its own is not a validation error (real-site false positive)" },
-    { "id": "N14", "rule": "broken-file",         "title": "price-list.pdf", "why": "Existing PDF must not be flagged" }
+    {
+      "id": "N01",
+      "rule": "sec-reflected-input",
+      "page": "/search-safe",
+      "why": "Escaped search must not be flagged"
+    },
+    {
+      "id": "N02",
+      "rule": "rtl-dir-missing",
+      "page": "/policy",
+      "why": "Correct RTL page"
+    },
+    {
+      "id": "N03",
+      "rule": "rtl-text-align",
+      "page": "/policy",
+      "why": "Correct RTL page"
+    },
+    {
+      "id": "N04",
+      "rule": "layout-overflow",
+      "page": "/policy",
+      "why": "No overflow on control page"
+    },
+    {
+      "id": "N05",
+      "rule": "soft-404",
+      "title": "Unknown URLs return HTTP 200",
+      "why": "Server returns real 404s"
+    },
+    {
+      "id": "N06",
+      "rule": "field-plus-tag",
+      "why": "qa+probe@example.com is a valid email"
+    },
+    {
+      "id": "N07",
+      "rule": "field-type",
+      "title": "אימייל",
+      "why": "Email already uses type=email"
+    },
+    {
+      "id": "N08",
+      "rule": "broken-image",
+      "why": "All images load"
+    },
+    {
+      "id": "N09",
+      "rule": "field-no-label",
+      "title": "אימייל",
+      "why": "Email has a proper label"
+    },
+    {
+      "id": "N10",
+      "rule": "rtl-dir-missing",
+      "page": "/booking",
+      "why": "dir=rtl on a wrapper is RTL, not LTR (real-site false positive)"
+    },
+    {
+      "id": "N11",
+      "rule": "field-whitespace-only",
+      "page": "/booking",
+      "why": "JS trim() validation shows error in span.err (real-site false positive)"
+    },
+    {
+      "id": "N12",
+      "rule": "field-letters",
+      "page": "/booking",
+      "why": "JS rejects letters in phone with span.err"
+    },
+    {
+      "id": "N13",
+      "rule": "field-too-short",
+      "page": "/booking",
+      "why": "JS rejects short phone with span.err"
+    },
+    {
+      "id": "N14",
+      "rule": "field-hebrew",
+      "page": "/booking",
+      "why": "an aria-live carousel changing on its own is not a validation error (real-site false positive)"
+    },
+    {
+      "id": "N14",
+      "rule": "broken-file",
+      "title": "price-list.pdf",
+      "why": "Existing PDF must not be flagged"
+    },
+    {
+      "id": "N15",
+      "rule": "action-double-submit",
+      "page": "/newsletter-safe",
+      "why": "button disabled while the request is in flight"
+    },
+    {
+      "id": "N16",
+      "rule": "action-false-success",
+      "page": "/newsletter-safe",
+      "why": "success only on a confirmed response"
+    },
+    {
+      "id": "N17",
+      "rule": "action-no-failure-feedback",
+      "page": "/newsletter-safe",
+      "why": "shows an error on 500 and on network failure"
+    }
   ],
   "coverage": [
-    { "id": "C01", "category": "RTL/i18n", "status": "tested", "page": "/about" },
-    { "id": "C02", "category": "Forms",    "status": "tested", "page": "/contact" },
-    { "id": "C03", "category": "Accessibility", "status": "tested", "page": "/products" },
-    { "id": "C04", "category": "Accessibility", "status": "blocked", "page": "/account/orders", "why": "Login wall must be reported as blocked, not audited as the login page" }
+    {
+      "id": "C01",
+      "category": "RTL/i18n",
+      "status": "tested",
+      "page": "/about"
+    },
+    {
+      "id": "C02",
+      "category": "Forms",
+      "status": "tested",
+      "page": "/contact"
+    },
+    {
+      "id": "C03",
+      "category": "Accessibility",
+      "status": "tested",
+      "page": "/products"
+    },
+    {
+      "id": "C04",
+      "category": "Accessibility",
+      "status": "blocked",
+      "page": "/account/orders",
+      "why": "Login wall must be reported as blocked, not audited as the login page"
+    },
+    {
+      "id": "C04",
+      "category": "Functional",
+      "status": "tested",
+      "page": "/newsletter"
+    },
+    {
+      "id": "C05",
+      "category": "Functional",
+      "status": "not-tested",
+      "page": "/contact"
+    }
   ],
-  "redirects": { "/old-about": "PASS", "/old-contact": "WRONG-STATUS", "/old-shop": "WRONG-TARGET", "/old-team": "MISSING", "/old-policy": "CHAIN" },
+  "redirects": {
+    "/old-about": "PASS",
+    "/old-contact": "WRONG-STATUS",
+    "/old-shop": "WRONG-TARGET",
+    "/old-team": "MISSING",
+    "/old-policy": "CHAIN"
+  },
   "report": {
     "verdictContains": "Not ready",
     "minCoveragePercent": 60
