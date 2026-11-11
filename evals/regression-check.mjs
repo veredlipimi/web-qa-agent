@@ -121,6 +121,23 @@ fs.writeFileSync(path.join(run, 'findings.manual.json'), JSON.stringify({ findin
 execFileSync(process.execPath, [path.join(scripts, 'report.mjs'), '--run', run], { stdio: 'pipe' });
 const vg = JSON.parse(fs.readFileSync(path.join(run, 'findings.json'), 'utf8')).gaps.find(g => g.ruleId === 'visual-review');
 results.push({ id: 'V02', what: 'a visual-review finding is always confidence "verify" (model judgement)', ok: !!vg && vg.confidence === 'verify' });
+// ---- Independent verification (Phase 5b), on a copy so the gate/delta checks above are untouched
+const runV = path.join(baseDir, 'run-v'); fs.cpSync(run, runV, { recursive: true });
+fs.rmSync(path.join(runV, 'findings.manual.json'), { force: true });
+execFileSync(process.execPath, [path.join(scripts, 'report.mjs'), '--run', runV], { stdio: 'pipe' });
+execFileSync(process.execPath, [path.join(scripts, 'verify-pack.mjs'), '--run', runV], { stdio: 'pipe' });
+const packet = JSON.parse(fs.readFileSync(path.join(runV, 'verify', 'packet.json'), 'utf8'));
+results.push({ id: 'V03', what: `verify packet holds only Critical/High gaps with evidence (${packet.gaps.length})`, ok: packet.gaps.length > 0 && packet.gaps.every(g => ['Critical', 'High'].includes(g.severity) && g.match && g.pages.length) && fs.existsSync(path.join(runV, 'verify', 'brief.md')) });
+const [g1, g2, g3] = packet.gaps;
+fs.writeFileSync(path.join(runV, 'verification.json'), JSON.stringify({ results: [
+  { match: g1.match, verdict: 'not-reproduced', note: 'followed the steps, page answered normally' },
+  { match: g2.match, verdict: 'insufficient-evidence', note: 'needs a logged-in account' },
+  { match: g3.match, verdict: 'confirmed', note: 'reproduced on desktop' } ] }));
+execFileSync(process.execPath, [path.join(scripts, 'report.mjs'), '--run', runV], { stdio: 'pipe' });
+const rv = JSON.parse(fs.readFileSync(path.join(runV, 'findings.json'), 'utf8'));
+const byTitle = t => rv.gaps.find(g => (g.originalTitle || g.title) === t);
+results.push({ id: 'V04', what: 'not-reproduced → removed from gaps and listed as dismissed with the note', ok: !byTitle(g1.match) && fs.readFileSync(path.join(runV, 'report.md'), 'utf8').includes('Not reproduced by independent verification') });
+results.push({ id: 'V05', what: 'insufficient-evidence → kept as "verify"; confirmed → kept with a note', ok: byTitle(g2.match)?.confidence === 'verify' && /Confirmed by independent verification/.test(byTitle(g3.match)?.verifyNote || '') });
 results.push({ id: 'K01', what: 'enforcement guard: all unit checks pass', ok: guardOk });
 let exploreOk = true; try { execFileSync(process.execPath, [path.join(here, 'explore-check.mjs')], { stdio: 'pipe', timeout: 180000 }); } catch { exploreOk = false; }
 results.push({ id: 'K02', what: 'bounded explorer: allowlist, ambiguity, origin lock, prod write block, budget, trace (explore-check.mjs)', ok: exploreOk });
