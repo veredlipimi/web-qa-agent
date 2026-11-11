@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Action probes: does a form behave safely when the user double-clicks, and does it tell the truth when
-// the server fails? Safe on production: after the form is filled, every request the submit triggers is
-// answered by the agent inside the browser — nothing reaches the server.
+// the server fails? Production-safe by design: after the form is filled, every HTTP request the submit triggers is
+// answered inside the browser, WebSockets and service workers are blocked, and destructive-looking GET
+// URLs are aborted. (An innocent-looking GET that changes state on the server cannot be detected.)
 //
 //   double   → two quick clicks on submit; the response is a delayed 200. ≥2 identical requests = gap.
 //   ok-200   → baseline: one click, response 200 {ok:true}. Is a success message detectable at all?
@@ -11,7 +12,7 @@
 // Usage: node action-probes.mjs --sitemap run/sitemap.json --out run [--max-forms 5] [--storage-state auth.json]
 // Output: run/findings.actions.json  (merged by report.mjs)
 import path from 'node:path';
-import { parseArgs, need, readJson, writeJson, launchBrowser, settle, ensureDir, slug } from './lib.mjs';
+import { parseArgs, need, readJson, writeJson, launchBrowser, settle, ensureDir, slug, SAFE_CONTEXT, blockWebSockets, isDestructiveGet } from './lib.mjs';
 
 const args = parseArgs();
 const sitemap = readJson(need(args, 'sitemap'), null);
@@ -46,14 +47,19 @@ const add = f => findings.push({ source: 'auto', category: 'Functional', viewpor
 
 const forms = [];
 for (const p of sitemap.pages.filter(p => p.status === 200)) for (const f of p.forms || []) {
-  if (f.method === 'get' && !f.fields.some(x => x.tag === 'textarea')) continue; // search / filter forms are not actions
+  // Search and filter forms are not actions. (A JS form without a method attribute is still an action:
+  // many submit over fetch or a WebSocket, so "method=get" alone is not a reason to skip.)
+  const looksLikeSearch = f.fields.some(x => x.type === 'search' || /^(q|s|search|query|term|keyword)s?$/i.test(x.name || '')) || /search/i.test(f.action || '');
+  if (looksLikeSearch && !f.fields.some(x => x.tag === 'textarea')) continue;
   const fields = f.fields.filter(x => x.visible && !['submit', 'button', 'hidden', 'file', 'range', 'color', 'password'].includes(x.type));
   if (f.fields.some(x => x.type === 'password')) { notCovered.push({ page: p.finalUrl || p.url, reason: `form #${f.index} is a login/password form — not probed` }); continue; }
   forms.push({ page: p.finalUrl || p.url, form: f, fields });
 }
 
 const browser = await launchBrowser();
-const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...(args['storage-state'] ? { storageState: args['storage-state'] } : {}) });
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...SAFE_CONTEXT, ...(args['storage-state'] ? { storageState: args['storage-state'] } : {}) });
+const wsBlocked = [];
+await blockWebSockets(ctx, wsBlocked); // page.route does not see WebSockets: without this a socket-based submit would reach the server
 // Native submissions never leave the page.
 await ctx.addInitScript(() => {
   window.addEventListener('submit', e => { window.__qaSubmitted = (window.__qaSubmitted || 0) + 1; e.preventDefault(); }, true);
@@ -69,7 +75,8 @@ async function probe(url, form, fields, mode) {
     const type = r.resourceType();
     const isAction = r.method() !== 'GET' && r.method() !== 'HEAD';
     // Before arming, only reads pass. After arming, every fetch/xhr/non-GET is answered locally.
-    if (!armed) return isAction ? route.abort('blockedbyclient') : route.continue();
+    if (!armed) return isAction || isDestructiveGet(r.url()) ? route.abort('blockedbyclient') : route.continue();
+    if (isDestructiveGet(r.url())) return route.abort('blockedbyclient');
     if (!isAction && !['fetch', 'xhr'].includes(type)) return route.continue();
     if (ANALYTICS.test(r.url()) || type === 'ping') return route.fulfill({ status: 204, body: '' });
     reqs.push({ method: r.method(), url: r.url(), at: Date.now() });
@@ -157,5 +164,5 @@ for (const { page: url, form, fields } of forms.slice(0, maxForms)) {
 }
 
 await browser.close();
-writeJson(path.join(outDir, 'findings.actions.json'), { findings, coverage, notCovered, probes });
+writeJson(path.join(outDir, 'findings.actions.json'), { findings, coverage, notCovered, probes, websocketsBlocked: wsBlocked.length });
 console.log(`[actions] ${forms.length} forms, ${findings.length} gaps, ${coverage.filter(c => c.status === 'tested').length} tested`);

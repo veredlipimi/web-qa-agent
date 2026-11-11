@@ -45,8 +45,9 @@ can be checked separately. So a Critical or High visual gap is listed in the gat
 and it does not block the release until independent verification (Phase 5b) confirms it.
 
 **Action probes** (`action-probes.mjs`) fill each form with valid data and answer every
-request the submit triggers inside the browser. Nothing reaches the server, so this is safe on
-production too. Each form gets four runs:
+HTTP request the submit triggers inside the browser. WebSockets and service workers are blocked,
+and so are destructive-looking GET URLs. That makes the probes read-only by design on production.
+A site that changes state on an innocent-looking GET is the one case that can't be detected. Each form gets four runs:
 - a 200 baseline, which checks whether success is detectable at all;
 - a double click, where two identical requests are a gap (High when the flow is order or payment);
 - a 500 response;
@@ -82,7 +83,7 @@ node <skill>/scripts/explore.mjs finish --out <run> --reason "cart journey done"
 - **Rejections** (exit 3): the action is not allowed, the name is ambiguous, or the step
   budget is spent. Rejected actions count against the budget. If a name is ambiguous, refine
   it; never guess between look-alike elements.
-- **Use `--prod` on production.** It blocks every non-GET request.
+- **Read-only is the default.** HTTP write methods, WebSockets, service workers and destructive-looking GET URLs are blocked, and clicks on destructive names (Logout, Delete, Unsubscribe, מחק, התנתק) are refused. `--allow-writes` lifts this, on staging only and with the user's OK. `--prod` is still accepted and means the default.
 - **Kill switch:** `touch ~/.qa-stop` stops every running session at its next action, and `<run>/explore/STOP` stops just one session. History and trace are kept. Never restart a stopped session without the user.
 - **Evidence:** `<run>/explore/history.json` and `trace.zip`. Cite them in findings.
 

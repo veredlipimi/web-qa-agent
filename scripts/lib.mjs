@@ -37,14 +37,34 @@ export async function launchBrowser() {
   return chromium.launch({ executablePath, headless: process.env.QA_HEADED ? false : true });
 }
 
+// ---- Write-safety layer shared by every script that interacts with a page.
+// What it guarantees: no HTTP write method (POST/PUT/PATCH/DELETE…), no WebSocket connection, no
+// service worker, and no GET to a URL that looks destructive (logout, delete, unsubscribe…) leaves
+// the browser. What it cannot guarantee: a site that changes state on an innocent-looking GET.
+// That is why production runs stay read-only by design, not by promise.
+export const SAFE_CONTEXT = { serviceWorkers: 'block' };
+export const DESTRUCTIVE_URL = /[/?&=_.-](log-?out|sign-?out|logoff|delete|remove|destroy|unsubscribe|deactivate|cancel[-_]?(order|subscription|account)?|revoke|purge|wipe|drop)(\b|[/?&=_.-]|$)/i;
+export const DESTRUCTIVE_NAME = /^(log ?out|sign ?out|log off|delete|remove|destroy|unsubscribe|deactivate|cancel|revoke|close account|delete account|התנתק|התנתקות|יציאה|מחק|מחיקה|הסר|הסרה|בטל|ביטול|בטל מנוי|סגור חשבון)\b/i;
+const ASSET_URL = /\.(png|jpe?g|gif|svg|webp|avif|ico|css|js|mjs|woff2?|ttf|eot|mp4|webm|mp3)(\?|$)/i;
+
+/** Blocks WebSockets (handshake never sent) and records what was blocked. Call before any page opens. */
+export async function blockWebSockets(ctx, blocked = []) {
+  if (typeof ctx.routeWebSocket !== 'function') { blocked.push({ kind: 'websocket-guard-unavailable', note: 'Playwright < 1.48' }); return; }
+  await ctx.routeWebSocket(/.*/, ws => { blocked.push({ kind: 'websocket', url: ws.url() }); ws.close({ code: 1008, reason: 'blocked by QA agent' }); });
+}
+
+/** true when a GET request should not leave the browser on production. */
+export const isDestructiveGet = (url) => { try { const u = new URL(url); return !ASSET_URL.test(u.pathname) && DESTRUCTIVE_URL.test(u.pathname + u.search); } catch { return false; } };
+
 // The only way an ad-hoc exploration script may open a browser context (the guard hook enforces it):
 // main-frame navigations stay on `origin`, and on production every non-GET request is blocked.
 // Fault injection still works: add your own ctx.route() handlers after this one.
 export async function guardedContext(browser, { origin, prod = true, ...opts }) {
   if (!origin) throw new Error('guardedContext needs { origin }');
   const allowed = new URL(origin).origin;
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...opts });
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...opts, ...(prod ? SAFE_CONTEXT : {}) });
   ctx.__blocked = [];
+  if (prod) await blockWebSockets(ctx, ctx.__blocked);
   await ctx.route('**/*', route => {
     const r = route.request();
     const u = new URL(r.url());
@@ -52,6 +72,7 @@ export async function guardedContext(browser, { origin, prod = true, ...opts }) 
       ctx.__blocked.push({ kind: 'off-origin navigation', url: r.url() }); return route.abort('blockedbyclient');
     }
     if (prod && !['GET', 'HEAD'].includes(r.method())) { ctx.__blocked.push({ kind: 'non-GET on production', method: r.method(), url: r.url() }); return route.abort('blockedbyclient'); }
+    if (prod && isDestructiveGet(r.url())) { ctx.__blocked.push({ kind: 'destructive-looking GET on production', url: r.url() }); return route.abort('blockedbyclient'); }
     return route.fallback();
   });
   return ctx;

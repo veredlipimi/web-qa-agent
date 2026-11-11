@@ -6,7 +6,7 @@
 //    (and accepts what it should, e.g. Hebrew names).
 // Usage: node field-matrix.mjs --sitemap run/sitemap.json --out run [--max-forms 5] [--max-fields 8]
 import path from 'node:path';
-import { parseArgs, need, readJson, writeJson, launchBrowser, settle, ensureDir, slug } from './lib.mjs';
+import { parseArgs, need, readJson, writeJson, launchBrowser, settle, ensureDir, slug, SAFE_CONTEXT, blockWebSockets, isDestructiveGet } from './lib.mjs';
 
 const args = parseArgs();
 const sitemap = readJson(need(args, 'sitemap'), null);
@@ -50,7 +50,7 @@ const notCovered = [];
 const add = (f) => findings.push({ source: 'auto', category: 'Forms', confidence: 'verify', viewport: 'desktop', ...f });
 
 const browser = await launchBrowser();
-const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 },
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...SAFE_CONTEXT,
   ...(args['storage-state'] ? { storageState: args['storage-state'] } : {}) });
 // Safety: no form ever reaches the server.
 await ctx.addInitScript(() => {
@@ -60,9 +60,10 @@ await ctx.addInitScript(() => {
   HTMLFormElement.prototype.requestSubmit = function () { this.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); };
   void orig;
 });
+await blockWebSockets(ctx);
 let actionRequests = 0; // a submit that reaches the network means the client accepted the input
 await ctx.route('**/*', r => {
-  if (r.request().method() === 'GET' || r.request().method() === 'HEAD') return r.continue();
+  if ((r.request().method() === 'GET' || r.request().method() === 'HEAD') && !isDestructiveGet(r.request().url())) return r.continue();
   actionRequests++;
   return r.abort('blockedbyclient');
 });
