@@ -34,9 +34,14 @@ export function evaluateGate(gaps, coverageRows, cfg, today = new Date()) {
     if (w.expires && new Date(w.expires) < today) { expired.push(w); return false; }
     return true;
   });
-  const blocking = [];
+  const blocking = [], suspected = [];
   for (const g of gaps) {
     if (!cfg.blockOn.includes(g.severity)) continue;
+    // The model is never the oracle: a gap that rests only on its judgement of an image is a suspicion.
+    // It shows in the report, but blocks the release only once independent verification confirmed it.
+    if (String(g.ruleId || '').startsWith('visual') && !/Confirmed by independent verification/.test(g.verifyNote || '')) {
+      suspected.push({ id: g.id, severity: g.severity, title: g.title }); continue;
+    }
     const w = active.find(w => matches(g, w.match));
     if (w) { g.waiver = w; waived.push({ id: g.id, title: g.title, reason: w.reason, expires: w.expires || null }); continue; }
     blocking.push({ id: g.id, severity: g.severity, title: g.title });
@@ -45,7 +50,7 @@ export function evaluateGate(gaps, coverageRows, cfg, today = new Date()) {
     ? coverageRows.filter(r => r.notTested + r.blocked > 0).map(r => ({ category: r.category, notTested: r.notTested, blocked: r.blocked, reasons: r.reasons }))
     : [];
   const status = blocking.length || strictBlocks.length ? 'FAIL' : 'PASS';
-  return { status, blockOn: cfg.blockOn, strict: !!cfg.strict, blocking, strictBlocks, waived, expiredWaivers: expired, invalidWaivers: invalid, config: cfg.source };
+  return { status, blockOn: cfg.blockOn, strict: !!cfg.strict, blocking, suspected, strictBlocks, waived, expiredWaivers: expired, invalidWaivers: invalid, config: cfg.source };
 }
 
 // History lives next to the runs: qa-runs/history/<host>.json (last 20 runs).

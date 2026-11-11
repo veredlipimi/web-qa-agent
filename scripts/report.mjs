@@ -37,7 +37,7 @@ const T = {
     v: { stop: 'Not ready to ship — critical gaps identified', risk: 'Ship only with the High gaps accepted or fixed', ok: 'No blocking gaps identified' },
     affected: 'Affected', none: 'None', byCat: 'By category', reason: 'Reason', fix: 'Suggested remediation (for the dev team)', verify: 'needs verification',
     coverage: 'Coverage', tested: 'Tested', notTested: 'Not tested', blocked: 'Blocked', scoped: 'in the tested scope only', covNote: 'A clean result covers only what was tested. Not-tested and blocked checks are not passes.',
-    gate: 'Release gate', waived: 'waived', delta: 'Since the previous run', regressions: 'Regressions (were fixed, failing again)', added: 'New gaps', fixed: 'Fixed', expiredW: 'Expired waivers (no longer applied)', strictB: 'Strict mode: categories with untested checks',
+    gate: 'Release gate', waived: 'waived', delta: 'Since the previous run', regressions: 'Regressions (were fixed, failing again)', added: 'New gaps', fixed: 'Fixed', expiredW: 'Expired waivers (no longer applied)', strictB: 'Strict mode: categories with untested checks', suspected: 'suspected, not blocking until independently verified',
     pre: 'Preconditions', req: 'Requirement', type: 'Type', impact: 'Impact / risk', questions: 'Open questions for product / dev', trace: 'Requirements traceability',
     traceNote: 'Each requirement → the test cases that cover it → the result. Judged from what a user can see and do, not from source code.', cases: 'Test cases', status: 'Status', reqWarn: 'Traceability warnings', reqPassed: 'requirements pass', api: 'API endpoints observed', apiNote: 'Every XHR/fetch call the pages made while loading, grouped by endpoint. A starting point for API test scenarios — observed, never called by the agent.', method: 'Method', endpoint: 'Endpoint', calls: 'Calls', statuses: 'Statuses', slowest: 'Slowest', onlyChromium: 'Firefox and Safari (WebKit) not tested — the audit and suite ran on Chromium only', missingB: (b) => `Not tested on ${b} — the suite ran without it` },
   he: { summary: 'תקציר', verdict: 'שורה תחתונה', findings: 'פערים שזוהו', sev: 'חומרה', cat: 'קטגוריה',
@@ -47,7 +47,7 @@ const T = {
     v: { stop: 'לא מוכן לעלייה — זוהו פערים קריטיים', risk: 'לעלות רק אם פערי ה-High תוקנו או התקבלו', ok: 'לא זוהו פערים חוסמים' },
     affected: 'מופעים', none: 'אין', byCat: 'לפי קטגוריה', reason: 'סיבה', fix: 'המלצה לתיקון (לצוות הפיתוח)', verify: 'דורש אימות',
     coverage: 'כיסוי', tested: 'נבדק', notTested: 'לא נבדק', blocked: 'חסום', scoped: 'בטווח שנבדק בלבד', covNote: 'תוצאה נקייה מתייחסת רק למה שנבדק. בדיקות שלא רצו או נחסמו אינן הצלחה.',
-    gate: 'שער שחרור', waived: 'פטור', delta: 'מאז ההרצה הקודמת', regressions: 'רגרסיות (תוקנו וחזרו)', added: 'פערים חדשים', fixed: 'תוקנו', expiredW: 'פטורים שפג תוקפם (לא חלים)', strictB: 'מצב קפדני: קטגוריות עם בדיקות שלא רצו',
+    gate: 'שער שחרור', waived: 'פטור', delta: 'מאז ההרצה הקודמת', regressions: 'רגרסיות (תוקנו וחזרו)', added: 'פערים חדשים', fixed: 'תוקנו', expiredW: 'פטורים שפג תוקפם (לא חלים)', strictB: 'מצב קפדני: קטגוריות עם בדיקות שלא רצו', suspected: 'חשד — לא חוסם עד אימות עצמאי',
     pre: 'תנאים מקדימים', req: 'דרישה', type: 'סוג', impact: 'השפעה / סיכון', questions: 'שאלות פתוחות למוצר / לפיתוח', trace: 'מעקב דרישות',
     traceNote: 'כל דרישה ← מקרי הבדיקה שמכסים אותה ← התוצאה. נבחן לפי מה שמשתמש רואה ועושה, לא לפי קוד המקור.', cases: 'מקרי בדיקה', status: 'סטטוס', reqWarn: 'אזהרות מעקב', reqPassed: 'דרישות עברו', api: 'נקודות API שנצפו', apiNote: 'כל קריאות XHR/fetch שהעמודים ביצעו בזמן הטעינה, מקובצות לפי endpoint. בסיס לתרחישי בדיקת API — נצפו בלבד, הסוכן לא קרא להן בעצמו.', method: 'שיטה', endpoint: 'נקודת קצה', calls: 'קריאות', statuses: 'סטטוסים', slowest: 'האיטית ביותר', onlyChromium: 'Firefox ו-Safari (WebKit) לא נבדקו — הבדיקה והסוויטה רצו על Chromium בלבד', missingB: (b) => `לא נבדק ב-${b} — הסוויטה רצה בלעדיו` },
 }[lang];
@@ -149,7 +149,7 @@ fs.writeFileSync(path.join(run, 'findings.csv'), '﻿' + [cols.join(','), ...fla
 // ---- Markdown
 const md = [];
 md.push(`# ${title}`, '', `**${T.verdict}:** ${verdict}`, '');
-md.push(`**${T.gate}:** ${gate.status === 'PASS' ? '✅ PASS' : '⛔ FAIL'} — blocks on ${gate.blockOn.join('/')}${gate.strict ? ' + strict' : ''}${gate.blocking.length ? ` · ${gate.blocking.map(b => b.id).join(', ')}` : ''}${gate.waived.length ? ` · ${T.waived}: ${gate.waived.map(w => w.id).join(', ')}` : ''}`, '');
+md.push(`**${T.gate}:** ${gate.status === 'PASS' ? '✅ PASS' : '⛔ FAIL'} — blocks on ${gate.blockOn.join('/')}${gate.strict ? ' + strict' : ''}${gate.blocking.length ? ` · ${gate.blocking.map(b => b.id).join(', ')}` : ''}${gate.waived.length ? ` · ${T.waived}: ${gate.waived.map(w => w.id).join(', ')}` : ''}${gate.suspected?.length ? ` · ${T.suspected}: ${gate.suspected.map(x => x.id).join(', ')}` : ''}`, '');
 if (gate.strictBlocks.length) md.push(`${T.strictB}: ${gate.strictBlocks.map(b => b.category).join(', ')}`, '');
 if (gate.expiredWaivers.length) md.push(`${T.expiredW}: ${gate.expiredWaivers.map(w => `${w.match} (${w.expires})`).join(', ')}`, '');
 if (delta) {
@@ -273,7 +273,7 @@ a{color:inherit}ul.plain{padding-inline-start:20px}code{font-size:.85em}
 <p class="sub">${esc(sitemap.startUrl)} · ${sitemap.pages.length} ${T.pages} · ${T.viewports}: ${esc((auto.viewports || []).join(', '))} · ${new Date().toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB')}</p>
 ${profile?.purpose ? `<p>${esc(profile.purpose)}</p>` : ''}
 <div class="verdict">${T.verdict}: ${esc(verdict)}</div>
-<p class="gate ${gate.status === 'PASS' ? 'pass' : 'fail'}"><strong>${T.gate}: ${gate.status}</strong> · ${esc(gate.blockOn.join('/'))}${gate.strict ? ' + strict' : ''}${gate.blocking.length ? ` · ${esc(gate.blocking.map(b => b.id).join(', '))}` : ''}${gate.waived.length ? ` · ${T.waived}: ${esc(gate.waived.map(w => `${w.id} (${w.reason}${w.expires ? `, ${w.expires}` : ''})`).join(', '))}` : ''}</p>
+<p class="gate ${gate.status === 'PASS' ? 'pass' : 'fail'}"><strong>${T.gate}: ${gate.status}</strong> · ${esc(gate.blockOn.join('/'))}${gate.strict ? ' + strict' : ''}${gate.blocking.length ? ` · ${esc(gate.blocking.map(b => b.id).join(', '))}` : ''}${gate.waived.length ? ` · ${T.waived}: ${esc(gate.waived.map(w => `${w.id} (${w.reason}${w.expires ? `, ${w.expires}` : ''})`).join(', '))}` : ''}${gate.suspected?.length ? ` · ${T.suspected}: ${esc(gate.suspected.map(x => x.id).join(', '))}` : ''}</p>
 ${delta ? `<h2>${T.delta}</h2><ul class="plain">
   <li>🔴 ${T.regressions}: ${delta.regressions.length ? esc(delta.regressions.map(g => `${g.id} ${g.title}`).join(' · ')) : T.none}</li>
   <li>🆕 ${T.added}: ${delta.added.length ? esc(delta.added.map(g => `${g.id} ${g.title}`).join(' · ')) : T.none}</li>

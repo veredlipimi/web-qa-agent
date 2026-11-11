@@ -40,6 +40,10 @@ screenshot. This is your judgement of an image, so `report.mjs` forces `confiden
 "verify"`. Never mark a page as passing because it "looks fine". Instead, add a `coverage`
 entry (category `Visual`, tested) for each sheet you reviewed.
 
+The model can point at a problem, but whether something passes or fails rests on conditions that
+can be checked separately. So a Critical or High visual gap is listed in the gate as **suspected**,
+and it does not block the release until independent verification (Phase 5b) confirms it.
+
 **Action probes** (`action-probes.mjs`) fill each form with valid data and answer every
 request the submit triggers inside the browser. Nothing reaches the server, so this is safe on
 production too. Each form gets four runs:
