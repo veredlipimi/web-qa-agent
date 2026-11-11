@@ -10,7 +10,7 @@ Give it a URL. It asks its questions once, shows a test plan, then crawls, audit
 
 - **Not tested ≠ passed.** Every check ends as *tested*, *not tested* or *blocked*, with a reason (login wall, timeout, missing test data, submit not allowed). The report shows a coverage table, and the verdict says "in the tested scope" unless coverage is 100%. A clean report is never mistaken for full coverage.
 - **Field integrity matrix.** Every form field is checked for type, length and format, then filled with edge values: whitespace-only, Hebrew and mixed-direction names, Israeli phone formats, malformed emails, maxlength+1. It records whether the UI rejects what it should and accepts what it should. Nothing is ever submitted: non-GET requests are blocked and native submission is prevented.
-- **False success and double submit.** Each form is submitted with the response simulated inside the browser: 200, double click, 500, and offline. A success message after a failure, or two requests from one double click, is a gap. Nothing reaches the server, so this is safe on production.
+- **False success and double submit.** Each form is submitted with the response simulated inside the browser: 200, double click, 500, and offline. A success message after a failure, or two requests from one double click, is a gap. Every HTTP request the submit triggers is answered inside the browser, and WebSockets, service workers and destructive-looking GET URLs are blocked. A site that changes state on an innocent-looking GET can't be detected, which is why production runs are read-only by design.
 - **Secrets in client code.** The agent scans the JavaScript every visitor downloads for live keys and tokens: Stripe secret, AWS, OpenAI, a service-role JWT and more. Public-by-design keys are skipped, and values are always redacted. This is the classic gap in apps built with AI app builders.
 - **Visual review.** For each page, a sheet shows desktop and mobile side by side, and the agent looks at it for what the DOM doesn't reveal: broken images, cut-off or overlapping text, layouts that collapse. These findings are the model's judgement, so they are always marked *verify*, never *confirmed*.
 - **RTL / Hebrew first.** `dir`, alignment and input direction are checked automatically, with a full manual checklist for mirroring, bidi text, formats and microcopy.
@@ -18,10 +18,17 @@ Give it a URL. It asks its questions once, shows a test plan, then crawls, audit
 - **Honest about browsers.** The audit runs on Chromium; on Deep the suite also runs on Firefox and WebKit/Safari. Any browser that didn't run is listed as not covered, so a pass on Chrome is never read as a pass on an iPhone.
 - **Evals for the agent itself.** A Hebrew demo storefront with planted gaps, redirect rules, gate/waiver and delta scenarios, and 14 false-positive controls, including ones taken from a real site. `node evals/regression-check.mjs` must stay green after every change.
 - **Requirements traceability.** Give it user stories, acceptance criteria, design notes or an existing test plan. It writes test cases only for what they say, runs them, and maps every requirement → test cases → PASS · FAIL · PARTIAL · NOT IMPLEMENTED · NOT VERIFIABLE · NOT TESTED → gaps. A FAIL with no linked gap, or a requirement with no case, is flagged in the report. The cases are also exported as a Google Sheets-ready CSV. Questions only product or dev can answer get their own section instead of becoming guesses.
-- **Bounded exploration.** The model picks the next step, and code decides whether it is allowed. `explore.mjs` accepts only the listed actions, by exact accessible name. It locks the browser to the site's origin at the network layer, blocks writes on production and enforces a step budget, and records every step with a trace. Page text is treated as data, never as instructions, and prompt-injection attempts are reported. The guard blocks MCP browser tools that bypass these limits.
+- **Bounded exploration.** The model picks the next step, and code decides whether it is allowed. `explore.mjs` accepts only the listed actions, by exact accessible name. Main-frame navigation is locked to the site, and the step budget is enforced. Every step is recorded with a trace. The browser is **read-only by default**: HTTP write methods, WebSockets, service workers and destructive-looking GET URLs are blocked, and clicks on names like Logout, Delete or מחק are refused. `--allow-writes` is for staging only. The control server accepts only its own session token, and `touch ~/.qa-stop` stops every session. Page text is treated as data, never as instructions. Instruction-like text triggers a warning, but that detection is a heuristic, not a guarantee. The guard blocks MCP browser tools that bypass these limits.
 - **Independent verification.** Before the report, every Critical and High gap goes to a separate agent that saw only the evidence, and that agent tries to disprove it. A gap that can't be reproduced is dismissed, with the verifier's note.
 - **Plan gate.** One approval, then it runs to the end without stopping.
-- **Rules are enforced, not requested.** While the skill runs, a hook blocks edits outside `qa-runs/` (it reports, never fixes), state-changing HTTP calls to real hosts, attack and load tools, and `test.only`/`test.skip`. Rules without enforcement are wishes.
+- **Guardrails in code, not only in the prompt.** While the skill runs, a hook blocks:
+  - edits outside `qa-runs/` (paths are normalised, because the agent reports and never fixes);
+  - state-changing HTTP to real hosts (curl, wget, httpie, inline Python and Node), and MCP fetch tools that write;
+  - unguarded browser scripts;
+  - attack and load tools;
+  - `test.only` and `test.skip`.
+
+  If the hook can't read its input, it blocks. This guards against the agent's mistakes. It is not a security boundary: it only sees the tool calls Claude Code makes, and pattern matching can be bypassed on purpose.
 - **Release gate + delta.** The report blocks on Critical/High by default, takes waivers that need a reason and an expiry (expired ones stop applying), has a strict mode, and exits 1 for CI with `--gate`. From the second run it shows **regressions**, **new** and **fixed** gaps.
 - **Migration QA, with [CutoverGate](https://github.com/veredlipimi/cutovergate).** `redirect-check.mjs` checks a redirect map (old → new) on the live origin: PASS · WRONG-TARGET · WRONG-STATUS · CHAIN · MISSING · ERROR. When CutoverGate is installed, it is used as the engine, which adds exceptions with expiry, delta and a gate report. Starting from the other side, `cutovergate qa` first gates the redirects and then runs this agent on the destination pages. Linked PDFs and other files are probed too.
 - **SSO-friendly login.** `save-auth.mjs` opens a browser, you log in by hand (SSO/MFA work), and the session is reused. No passwords in chat.
@@ -74,7 +81,7 @@ You choose a depth (Quick / Standard / Deep), the environment (production read-o
 ## Test the agent
 
 ```bash
-node evals/regression-check.mjs     # 82 deterministic checks (88 with CutoverGate installed), ~2 min
+node evals/regression-check.mjs     # 83 deterministic checks (89 with CutoverGate installed), ~2 min
 node evals/requirements-check.mjs   # 22 traceability checks, no browser, ~1 s
 ```
 
@@ -97,12 +104,12 @@ MIT © Vered Li
 **מה מייחד אותו:**
 - **"לא נבדק" אינו "עבר".** לכל בדיקה יש סטטוס: נבדק, לא נבדק או חסום, עם סיבה. בדוח יש טבלת כיסוי, והשורה התחתונה נכתבת "בטווח שנבדק".
 - **מטריצת שדות:** גודל, אורך ופורמט של כל שדה, עם ערכי קצה בעברית ובפורמטים ישראליים, בלי לשלוח אף טופס.
-- **הצלחה מזויפת ולחיצה כפולה:** הסוכן שולח כל טופס כשהתשובה מדומה בדפדפן: 500, ניתוק ולחיצה כפולה. אם מופיעה הודעת הצלחה אחרי כשל, או שלחיצה כפולה שולחת שתי בקשות, זה פער. שום בקשה לא מגיעה לשרת.
+- **הצלחה מזויפת ולחיצה כפולה:** הסוכן שולח כל טופס כשהתשובה מדומה בדפדפן: 500, ניתוק ולחיצה כפולה. אם מופיעה הודעת הצלחה אחרי כשל, או שלחיצה כפולה שולחת שתי בקשות, זה פער. כל בקשת HTTP נענית בתוך הדפדפן, ו-WebSocket, service workers וכתובות GET שנראות הרסניות חסומים. אתר שמשנה מצב דרך GET תמים לא ניתן לזיהוי, ולכן ההרצה בפרודקשן היא לקריאה בלבד.
 - **RTL ועברית:** בדיקות אוטומטיות של dir, יישור וכיוון שדות קלט, וצ׳קליסט ידני מלא.
 - **API ורשת:** קריאות שנכשלות, איטיות או כפולות, והזרקת תקלות.
 - **Evals לסוכן עצמו:** חנות דמו בעברית עם 20 פערים מתוכננים ו-13 בדיקות נגד false positives.
-- **חקירה בגבולות:** המודל בוחר את הצעד הבא, והקוד מחליט אם הוא מותר. הדפדפן נעול לאתר, אין כתיבה בפרודקשן, ויש תקציב צעדים ו-trace. טקסט בעמוד הוא מידע, לא הוראה.
-- **אכיפה, לא בקשה:** hook שחוסם עריכה מחוץ ל-qa-runs, בקשות POST לאתרים אמיתיים, כלי תקיפה ועומס, ו-test.skip.
+- **חקירה בגבולות:** המודל בוחר את הצעד הבא, והקוד מחליט אם הוא מותר. ברירת המחדל היא קריאה בלבד: בלי כתיבה, בלי WebSocket ובלי לחיצה על "התנתק" או "מחק". יש נעילת ניווט לאתר, תקציב צעדים, trace ומתג עצירה. טקסט בעמוד הוא מידע, לא הוראה.
+- **מעקה בטיחות בקוד:** hook שחוסם עריכה מחוץ ל-qa-runs, בקשות כתיבה לאתרים אמיתיים, כלי תקיפה ועומס, ו-test.skip. הוא מגן מטעויות של הסוכן, אבל הוא לא גבול אבטחה.
 - **שער שחרור ודלתא:** פטורים עם סיבה ותאריך תפוגה, מצב קפדני, ומההרצה השנייה: רגרסיות, פערים חדשים ופערים שתוקנו.
 - **QA להגירות אתרים:** בדיקת מפת הפניות (301) ובדיקת קבצים מקושרים (PDF וכו'). כשמותקן [CutoverGate](https://github.com/veredlipimi/cutovergate), הבדיקה רצה דרכו, ו-`cutovergate qa` מריץ את הסוכן על עמודי היעד אחרי שהשער עבר.
 - **מעקב דרישות:** נותנים לו user stories, קריטריוני קבלה, הערות עיצוב או Test Plan קיים. הוא כותב מקרי בדיקה רק למה שכתוב בהם, מריץ אותם, ומציג לכל דרישה את מקרי הבדיקה, הסטטוס (PASS, FAIL, PARTIAL, NOT IMPLEMENTED, NOT VERIFIABLE, NOT TESTED) והפערים. FAIL בלי פער מקושר, או דרישה בלי מקרה בדיקה, מסומנים בדוח. מקרי הבדיקה יוצאים גם כ-CSV מוכן ל-Google Sheets, ושאלות פתוחות למוצר ולפיתוח מקבלות סעיף משלהן.

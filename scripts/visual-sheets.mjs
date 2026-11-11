@@ -10,7 +10,7 @@
 // and confidence "verify" (report.mjs enforces this) — never as a pass, never as confirmed.
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseArgs, need, readJson, writeJson, launchBrowser, settle, scrollThrough, ensureDir, slug, VIEWPORTS } from './lib.mjs';
+import { parseArgs, need, readJson, writeJson, launchBrowser, settle, scrollThrough, ensureDir, slug, VIEWPORTS, SAFE_CONTEXT, blockWebSockets, isDestructiveGet } from './lib.mjs';
 
 const args = parseArgs();
 const sitemap = readJson(need(args, 'sitemap'), null);
@@ -29,9 +29,10 @@ for (const p of pages) {
   const url = p.finalUrl || p.url;
   const shots = [];
   for (const vp of viewports) {
-    const ctx = await browser.newContext({ ...VIEWPORTS[vp], ...(args['storage-state'] ? { storageState: args['storage-state'] } : {}) });
+    const ctx = await browser.newContext({ ...VIEWPORTS[vp], ...SAFE_CONTEXT, ...(args['storage-state'] ? { storageState: args['storage-state'] } : {}) });
+    await blockWebSockets(ctx);
     // Read-only: no form or API write leaves the browser while capturing.
-    await ctx.route('**/*', r => (['GET', 'HEAD'].includes(r.request().method()) ? r.continue() : r.abort('blockedbyclient')));
+    await ctx.route('**/*', r => (['GET', 'HEAD'].includes(r.request().method()) && !isDestructiveGet(r.request().url()) ? r.continue() : r.abort('blockedbyclient')));
     const page = await ctx.newPage();
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });

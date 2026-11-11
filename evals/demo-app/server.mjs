@@ -160,7 +160,29 @@ const pages = {
 
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
+// Safety lab (unlinked, used by explore-check): counts what actually reached the server.
+const LAB = { upgrades: 0, logout: 0, deleteGet: 0, posts: 0 };
 const server = http.createServer((req, res) => {
+  {
+    const lu = new URL(req.url, 'http://x');
+    if (lu.pathname === '/lab-stats') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify(LAB)); }
+    if (lu.pathname === '/logout') { LAB.logout++; res.writeHead(302, { location: '/' }); return res.end(); }
+    if (lu.pathname === '/api/delete') { LAB.deleteGet++; res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"deleted":true}'); }
+    if (lu.pathname.startsWith('/lab') && req.method === 'POST') { LAB.posts++; res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"ok":true}'); }
+    if (lu.pathname === '/lab') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Lab</title></head><body><h1>Safety lab</h1>
+        <a href="/logout">Logout</a> · <a href="/api/delete?id=1">Remove listing</a>
+        <button type="button" id="ws">Open live chat</button>
+        <form id="lf"><label for="lf-email">Email</label><input id="lf-email" name="email" type="email" required><button type="submit">Join</button><p id="lf-msg" role="status"></p></form>
+        <script>
+          document.getElementById('ws').onclick = () => { try { new WebSocket('ws://' + location.host + '/socket'); } catch (e) {} };
+          document.getElementById('lf').addEventListener('submit', e => { e.preventDefault();
+            try { const ws = new WebSocket('ws://' + location.host + '/socket'); ws.onopen = () => ws.send(JSON.stringify({ join: e.target.email.value })); } catch (err) {}
+            document.getElementById('lf-msg').textContent = 'Thanks! You joined.'; });
+        </script></body></html>`);
+    }
+  }
   const u = new URL(req.url, `http://localhost:${port}`);
   const sid = (req.headers.cookie || '').match(/sessionid=([^;]+)/)?.[1] || Math.random().toString(36).slice(2);
   // Session cookie without HttpOnly (gap) + version disclosure; no CSP / XFO / nosniff / Referrer-Policy.
@@ -203,4 +225,5 @@ const server = http.createServer((req, res) => {
   res.writeHead(404, { ...baseHeaders, 'content-type': 'text/html; charset=utf-8' });
   res.end(head('404') + '<h1>404</h1>' + foot);
 });
+server.on('upgrade', (req, socket) => { LAB.upgrades++; socket.destroy(); });
 server.listen(port, () => console.log(`demo-app on http://localhost:${port}`));

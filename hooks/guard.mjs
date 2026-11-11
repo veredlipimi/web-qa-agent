@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // PreToolUse guard for the web-qa-agent skill — "rules without enforcement are wishes".
+// A guardrail against mistakes, not a security boundary (see guard-rules.mjs).
 // Active only while the skill is in use (declared in SKILL.md frontmatter).
 // Reads the hook JSON from stdin; exit 2 + stderr = block (stderr is shown to Claude).
 //
@@ -17,7 +18,8 @@ import { checkBash, checkWrite, checkTool } from './guard-rules.mjs';
 const chunks = [];
 for await (const c of process.stdin) chunks.push(c);
 let input = {};
-try { input = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { process.exit(0); }
+// Fail closed: input we cannot read is blocked, not waved through.
+try { input = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { process.stderr.write('[web-qa-agent guard] Unreadable hook input — blocked (fail-closed).\n'); process.exit(2); }
 
 const tool = input.tool_name || '';
 const ti = input.tool_input || {};
@@ -28,6 +30,6 @@ if (tool === 'Bash') reason = checkBash(ti.command || '');
 else if (tool === 'Write') reason = checkWrite(ti.file_path, ti.content);
 else if (tool === 'Edit' || tool === 'MultiEdit') reason = checkWrite(ti.file_path, ti.new_string || (ti.edits || []).map(e => e.new_string).join('\n'));
 else if (tool === 'NotebookEdit') reason = checkWrite(ti.notebook_path, ti.new_source);
-else if (tool.startsWith('mcp__')) reason = checkTool(tool);
+else if (tool.startsWith('mcp__')) reason = checkTool(tool, ti);
 if (reason) block(reason);
 process.exit(0);

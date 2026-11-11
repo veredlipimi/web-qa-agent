@@ -5,6 +5,7 @@
 //
 //   node secret-scan.mjs --sitemap <run>/sitemap.json --out <run> [--max-files 60]
 // Output: <run>/findings.secrets.json (merged by report.mjs)
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { parseArgs, need, readJson, writeJson } from './lib.mjs';
 
@@ -29,19 +30,21 @@ export const PATTERNS = [
 ];
 const JWT = /\beyJ[A-Za-z0-9_-]{8,}\.(eyJ[A-Za-z0-9_-]{8,})\.[A-Za-z0-9_-]{8,}\b/g;
 
+// The identifier just before the value (e.g. STRIPE_SECRET=), so a reader can find it without the secret.
+const contextOf = (text, i) => (text.slice(Math.max(0, i - 60), i).match(/([A-Za-z_$][\w$.]{2,40})\s*[:=]\s*["'`]?$/) || [])[1] || null;
 export const redact = v => (v.length <= 12 ? v.slice(0, 2) + '…' : `${v.slice(0, 4)}…${v.slice(-4)}`);
 
 export function scanText(text) {
   const hits = [];
   for (const [id, label, re, severity, note] of PATTERNS) {
-    for (const m of text.matchAll(re)) hits.push({ id, label, severity, note, value: redact(m[0]), index: m.index });
+    for (const m of text.matchAll(re)) hits.push({ id, label, severity, note, value: redact(m[0]), key: crypto.createHash('sha256').update(m[0]).digest('hex').slice(0, 16), context: contextOf(text, m.index), index: m.index });
   }
   // JWTs: only a service-role / admin token is a secret; an anon key is meant to be public.
   for (const m of text.matchAll(JWT)) {
     let payload = null;
     try { payload = JSON.parse(Buffer.from(m[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')); } catch { continue; }
     const role = String(payload.role || payload.scope || '').toLowerCase();
-    if (/service_role|admin|superuser/.test(role)) hits.push({ id: 'jwt-privileged', label: `Privileged token (role: ${role})`, severity: 'Critical', note: 'A service-role token bypasses row-level security: full read/write to the database for anyone.', value: redact(m[0]), index: m.index });
+    if (/service_role|admin|superuser/.test(role)) hits.push({ id: 'jwt-privileged', label: `Privileged token (role: ${role})`, severity: 'Critical', note: 'A service-role token bypasses row-level security: full read/write to the database for anyone.', value: redact(m[0]), key: crypto.createHash('sha256').update(m[0]).digest('hex').slice(0, 16), context: contextOf(text, m.index), index: m.index });
   }
   return hits;
 }
@@ -51,7 +54,7 @@ const inline = [];
 for (const p of sitemap.pages.filter(p => p.status === 200)) {
   const page = p.finalUrl || p.url;
   let html = '';
-  try { html = await (await fetch(page, { headers: { 'user-agent': UA } })).text(); } catch { continue; }
+  try { html = await (await fetch(page, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(20000) })).text(); } catch { continue; }
   for (const m of html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']?([^"' >]+)[^>]*>/gi)) {
     let u; try { u = new URL(m[1], page).href; } catch { continue; }
     if (!files.has(u)) files.set(u, []);
@@ -64,12 +67,12 @@ const findings = [];
 const notCovered = [];
 const seen = new Set();
 const add = (hit, where, pages) => {
-  const key = `${hit.id}|${hit.value}`;
+  const key = `${hit.id}|${hit.key || hit.value}`; // full-value hash: two keys sharing first/last 4 chars stay separate
   if (seen.has(key)) return;
   seen.add(key);
   findings.push({ source: 'auto', ruleId: `secret-${hit.id}`, category: 'Security', severity: hit.severity, confidence: hit.severity === 'Info' ? 'verify' : 'confirmed',
     page: pages[0], viewport: 'desktop', title: `${hit.label} exposed in client-side code (${hit.value})`,
-    steps: [`Open ${pages[0]}`, `View the source of ${where}`, `Search for "${hit.value.split('…')[0]}"`],
+    steps: [`Open ${pages[0]}`, `View the source of ${where}`, hit.context ? `Search for "${hit.context}"` : `Search for the value starting "${hit.value.split('…')[0]}" and ending "${hit.value.split('…')[1] || ''}"`],
     expected: 'No secret credentials in code sent to the browser', actual: `${hit.label} found in ${where}. ${hit.note}`,
     remediation: hit.severity === 'Info' ? 'Restrict the key (HTTP referrer, allowed APIs) in the provider console.' : 'Rotate the credential now, then move the call behind a server endpoint so the secret never reaches the browser.',
     evidence: { details: `${where} — value redacted: ${hit.value}${pages.length > 1 ? ` · loaded by ${pages.length} pages` : ''}` } });
@@ -78,7 +81,7 @@ const add = (hit, where, pages) => {
 let scanned = 0;
 for (const [url, pages] of [...files].slice(0, maxFiles)) {
   try {
-    const res = await fetch(url, { headers: { 'user-agent': UA } });
+    const res = await fetch(url, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(20000) }); // third-party CDN files are read too (GET, like any visitor)
     if (!res.ok) continue;
     const text = await res.text();
     scanned++;
@@ -87,7 +90,7 @@ for (const [url, pages] of [...files].slice(0, maxFiles)) {
     const sm = text.match(/\/\/# sourceMappingURL=([^\s]+)\s*$/m);
     if (sm && !sm[1].startsWith('data:')) {
       const mapUrl = new URL(sm[1], url).href;
-      const r = await fetch(mapUrl, { method: 'HEAD', headers: { 'user-agent': UA } }).catch(() => null);
+      const r = await fetch(mapUrl, { method: 'HEAD', headers: { 'user-agent': UA }, signal: AbortSignal.timeout(10000) }).catch(() => null);
       if (r?.ok) add({ id: 'source-map', label: 'Public source map', severity: 'Low', note: 'The original source code, including comments, is downloadable.', value: path.basename(new URL(mapUrl).pathname) }, mapUrl, pages);
     }
   } catch { notCovered.push({ page: url, reason: 'script could not be downloaded' }); }

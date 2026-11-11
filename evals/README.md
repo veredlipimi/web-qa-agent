@@ -26,8 +26,8 @@ runs preflight → crawl → audit → field-matrix → report, and checks `expe
 | `E19–E20`, `N18–N20` | Secrets in `/assets/app.js` (built at runtime): Stripe secret and service_role JWT found; publishable key and anon JWT ignored; values redacted |
 | `V01–V02` | Visual sheets are produced for each page (mobile + desktop); a `visual-review` finding is always forced to `verify` |
 | `V03–V05` | Independent verification: the packet holds only Critical/High gaps with evidence; not-reproduced → dismissed; insufficient-evidence → `verify`; confirmed → noted |
-| `K01` | Enforcement guard unit tests (`guard-check.mjs`, 17 cases: shell, writes, MCP browser tools, unguarded exploration scripts) |
-| `K02` | Bounded explorer (`explore-check.mjs`, 11 checks): untrusted-content label, prompt-injection warning, action allowlist, ambiguous names rejected, off-origin navigation blocked, production POST blocked, step budget, history + trace, guardedContext(), kill switch |
+| `K01` | Enforcement guard unit tests (`guard-check.mjs`, 30 cases: shell incl. curl --json/-T, httpie, inline Python/Node writes; normalised paths; MCP browser and fetch tools; unguarded scripts incl. Python/puppeteer and comment-only guardedContext; fail-closed on malformed input) |
+| `K02` | Bounded explorer (`explore-check.mjs`, 16 checks): untrusted-content label, prompt-injection warning, action allowlist, ambiguous names rejected, off-origin navigation blocked, production POST blocked, step budget, history + trace, guardedContext(), kill switch, plus a safety lab that counts what actually reached the server: destructive names refused, destructive GETs and WebSocket handshakes = 0, control-server token, WebSocket-based submit in action-probes = 0 |
 | `T00` | Requirements traceability (`requirements-check.mjs`, 22 cases, no browser): roll-up rules, the honesty warnings (FAIL without a gap, NOT_TESTED without a reason, unknown requirement, uncovered requirement, a literal password in test data), the Sheets CSV, and the report sections |
 
 When you add a check: plant a gap in `demo-app/server.mjs`, add a `find` line, **and**

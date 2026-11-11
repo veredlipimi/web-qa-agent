@@ -20,11 +20,19 @@ the language the user chose in Phase 0 (default: the language the user wrote in)
 
 ## Non-negotiable rules
 
-These rules are **enforced**, not just requested: while this skill is active, a
-PreToolUse hook (`hooks/guard.mjs`) blocks writes outside `qa-runs/`, state-changing
-HTTP calls to non-local hosts, attack and load-testing tools, and `test.only` /
-`test.skip` in specs. If the guard blocks you, change the approach — never try to get
-around it.
+These rules are backed by code, not only stated here. While this skill is active, a PreToolUse
+hook (`hooks/guard.mjs`) blocks:
+- writes outside `qa-runs/`;
+- state-changing HTTP to non-local hosts, from the shell, from inline code or from MCP fetch tools;
+- unguarded browser scripts and MCP browser tools;
+- attack and load-testing tools;
+- `test.only` / `test.skip` in specs.
+
+The hook is a guardrail against mistakes, not a security boundary. If the guard blocks you,
+change the approach and never try to get around it. Production safety is **read-only by
+design**: no HTTP write methods, no WebSockets, no service workers, and no destructive-looking
+GETs or clicks. Even so, a site that changes state on an innocent-looking GET can't be
+detected, so say "read-only by design", never "nothing can change on the server".
 
 1. **Report only. Never fix.** Do not edit the target's code, config, content or data, and do
    not open PRs against it. Your output is findings, a test suite and a report.
