@@ -221,6 +221,37 @@ node <skill>/scripts/field-matrix.mjs --sitemap <run>/sitemap.json --out <run>
 node <skill>/scripts/action-probes.mjs --sitemap <run>/sitemap.json --out <run>
 ```
 
+**Secrets in client code** (`secret-scan.mjs`). This reads the JavaScript that every visitor
+downloads (script files and inline scripts) and looks for live credentials:
+- Stripe secret keys, AWS keys, private keys;
+- OpenAI, Anthropic and GitHub tokens, Slack, SendGrid and Twilio keys;
+- service-role JWTs, such as a Supabase `service_role` token.
+
+Keys that are public by design are left alone: Stripe `pk_`, anon JWTs, and Google keys
+(reported as Info, to verify restrictions). A public source map is reported as Low. Values are
+redacted to the first and last 4 characters, and never appear in full (rule 8). This matters
+most for apps built with AI app builders, where a secret key in the frontend is a common gap.
+
+```bash
+node <skill>/scripts/secret-scan.mjs --sitemap <run>/sitemap.json --out <run>
+```
+
+**Visual review** (`visual-sheets.mjs`). This produces one image per page, with the desktop
+and mobile views side by side:
+
+```bash
+node <skill>/scripts/visual-sheets.mjs --sitemap <run>/sitemap.json --out <run> --max-pages 20
+```
+
+Read every sheet in `<run>/visual/`. Report only what a user would see as broken and that
+the DOM checks can't catch: a wrong or broken image, text that is cut off or overlapping,
+an empty area, content hidden behind a fixed header, or a mobile layout that falls apart.
+
+Record each gap in `findings.manual.json` with `ruleId: "visual-review"` and the sheet as the
+screenshot. This is your judgement of an image, so `report.mjs` forces `confidence:
+"verify"`. Never mark a page as passing because it "looks fine". Instead, add a `coverage`
+entry (category `Visual`, tested) for each sheet you reviewed.
+
 **Action probes** (`action-probes.mjs`) fill each form with valid data and answer every
 request the submit triggers inside the browser. Nothing reaches the server, so this is safe on
 production too. Each form gets four runs:
@@ -390,7 +421,7 @@ set `QA_CHROME_PATH` to an installed Chrome/Chromium; `QA_HEADED=1` shows the br
 
 ## Files
 
-- `scripts/preflight.mjs`, `crawl.mjs`, `overview.mjs`, `audit.mjs`, `field-matrix.mjs`, `action-probes.mjs`,
+- `scripts/preflight.mjs`, `crawl.mjs`, `overview.mjs`, `audit.mjs`, `field-matrix.mjs`, `action-probes.mjs`, `visual-sheets.mjs`, `secret-scan.mjs`,
   `redirect-check.mjs`, `save-auth.mjs`, `scaffold-suite.mjs`, `suite-summary.mjs`,
   `report.mjs` (+ `gate.mjs`, `i18n-he.mjs`, `requirements.mjs`, `api-inventory.mjs`), `package.mjs`, `setup.mjs`, `lib.mjs`
 - `hooks/guard.mjs` — the enforcement hook declared in the frontmatter

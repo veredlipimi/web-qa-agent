@@ -11,6 +11,8 @@ Give it a URL. It asks its questions once, shows a test plan, then crawls, audit
 - **Not tested ≠ passed.** Every check ends as *tested*, *not tested* or *blocked*, with a reason (login wall, timeout, missing test data, submit not allowed). The report shows a coverage table, and the verdict says "in the tested scope" unless coverage is 100%. A clean report is never mistaken for full coverage.
 - **Field integrity matrix.** Every form field is checked for type, length and format, then filled with edge values: whitespace-only, Hebrew and mixed-direction names, Israeli phone formats, malformed emails, maxlength+1. It records whether the UI rejects what it should and accepts what it should. Nothing is ever submitted: non-GET requests are blocked and native submission is prevented.
 - **False success and double submit.** Each form is submitted with the response simulated inside the browser: 200, double click, 500, and offline. A success message after a failure, or two requests from one double click, is a gap. Nothing reaches the server, so this is safe on production.
+- **Secrets in client code.** The agent scans the JavaScript every visitor downloads for live keys and tokens: Stripe secret, AWS, OpenAI, a service-role JWT and more. Public-by-design keys are skipped, and values are always redacted. This is the classic gap in apps built with AI app builders.
+- **Visual review.** For each page, a sheet shows desktop and mobile side by side, and the agent looks at it for what the DOM doesn't reveal: broken images, cut-off or overlapping text, layouts that collapse. These findings are the model's judgement, so they are always marked *verify*, never *confirmed*.
 - **RTL / Hebrew first.** `dir`, alignment and input direction are checked automatically, with a full manual checklist for mirroring, bidi text, formats and microcopy.
 - **API / network.** 5xx and 4xx responses, failed, slow and duplicate calls, plus fault injection in exploratory runs (500, slow network, offline, expired session). Every endpoint the pages call is listed in an API inventory (method, path, statuses, timings), the base for API test scenarios.
 - **Honest about browsers.** The audit runs on Chromium; on Deep the suite also runs on Firefox and WebKit/Safari. Any browser that didn't run is listed as not covered, so a pass on Chrome is never read as a pass on an iPhone.
@@ -71,7 +73,7 @@ You choose a depth (Quick / Standard / Deep), the environment (production read-o
 ## Test the agent
 
 ```bash
-node evals/regression-check.mjs     # 72 deterministic checks (78 with CutoverGate installed), ~2 min
+node evals/regression-check.mjs     # 79 deterministic checks (85 with CutoverGate installed), ~2 min
 node evals/requirements-check.mjs   # 22 traceability checks, no browser, ~1 s
 ```
 

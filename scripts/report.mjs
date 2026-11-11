@@ -19,7 +19,8 @@ const manual = readJson(path.join(run, 'findings.manual.json'), { findings: [] }
 const fields = readJson(path.join(run, 'findings.fields.json'), { findings: [], coverage: [], notCovered: [] });
 const redirects = readJson(path.join(run, 'findings.redirects.json'), { findings: [], coverage: [], notCovered: [] });
 const actions = readJson(path.join(run, 'findings.actions.json'), { findings: [], coverage: [], notCovered: [] });
-for (const k of ['findings', 'coverage', 'notCovered']) fields[k] = [...(fields[k] || []), ...(redirects[k] || []), ...(actions[k] || [])];
+const secrets = readJson(path.join(run, 'findings.secrets.json'), { findings: [], coverage: [], notCovered: [] });
+for (const k of ['findings', 'coverage', 'notCovered']) fields[k] = [...(fields[k] || []), ...(redirects[k] || []), ...(actions[k] || []), ...(secrets[k] || [])];
 const triage = readJson(path.join(run, 'triage.json'), { dismiss: [], severity: [] });
 const assumptions = readJson(path.join(run, 'assumptions.json'), []);
 const suiteResult = readJson(path.join(run, 'suite-result.json'), null);
@@ -55,7 +56,8 @@ const sevLabel = s => (lang === 'he' ? `${SEV_HE[s]} · ${s}` : s);
 const raw = [
   ...auto.findings.map(f => ({ ...f, source: 'auto', originalTitle: f.title })),
   ...(fields.findings || []).map(f => ({ ...f, source: 'auto', originalTitle: f.title })),
-  ...(manual.findings || []).map(f => ({ ...f, source: 'manual' })),
+  // Visual review is the model's judgement of a screenshot: always "verify", never confirmed.
+  ...(manual.findings || []).map(f => ({ ...f, source: 'manual', ...(String(f.ruleId || '').startsWith('visual') ? { confidence: 'verify' } : {}) })),
 ];
 const L = f => (lang === 'he' ? localizeFinding(f) : f);
 for (let i = 0; i < raw.length; i++) raw[i] = L(raw[i]);

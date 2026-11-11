@@ -35,6 +35,7 @@ step('preflight', 'preflight.mjs', ['--url', base + '/', '--out', run]);
 step('crawl', 'crawl.mjs', ['--url', base + '/', '--out', run, '--max-pages', '20']);
 step('audit', 'audit.mjs', ['--sitemap', path.join(run, 'sitemap.json'), '--out', run, '--viewports', 'mobile,desktop']);
 step('field-matrix', 'field-matrix.mjs', ['--sitemap', path.join(run, 'sitemap.json'), '--out', run]);
+step('secrets', 'secret-scan.mjs', ['--sitemap', path.join(run, 'sitemap.json'), '--out', run]);
 step('actions', 'action-probes.mjs', ['--sitemap', path.join(run, 'sitemap.json'), '--out', run, '--max-forms', '8']);
 step('redirects', 'redirect-check.mjs', ['--map', path.join(here, 'demo-app', 'redirects.csv'), '--origin', base_url(), '--out', run, '--engine', 'builtin']);
 // Same map through CutoverGate when it is available (sibling checkout or $CUTOVERGATE): both engines must agree.
@@ -112,6 +113,14 @@ results.push({ id: 'H03', what: 'delta: gap that came back is a regression', ok:
 
 // ---- Guard unit tests
 let guardOk = true; try { execFileSync(process.execPath, [path.join(here, 'guard-check.mjs')], { stdio: 'pipe' }); } catch { guardOk = false; }
+// ---- Visual sheets
+let vis = null;
+try { execFileSync(process.execPath, [path.join(scripts, 'visual-sheets.mjs'), '--sitemap', path.join(run, 'sitemap.json'), '--out', run, '--max-pages', '4'], { stdio: 'pipe', timeout: 300000 }); vis = JSON.parse(fs.readFileSync(path.join(run, 'visual', 'index.json'), 'utf8')); } catch {}
+results.push({ id: 'V01', what: 'visual sheets: one image per page with mobile + desktop', ok: !!vis && vis.pages.length === 4 && vis.pages.every(p => fs.existsSync(p.sheet) && p.viewports.join() === 'mobile,desktop') });
+fs.writeFileSync(path.join(run, 'findings.manual.json'), JSON.stringify({ findings: [{ ruleId: 'visual-review', category: 'Responsive', severity: 'Medium', confidence: 'confirmed', title: 'Hero image overlaps the heading on mobile', page: base_url() + '/', viewport: 'mobile', steps: ['Open / on a phone'], expected: 'Heading readable', actual: 'Image covers it', evidence: { details: 'sheet' } }] }));
+execFileSync(process.execPath, [path.join(scripts, 'report.mjs'), '--run', run], { stdio: 'pipe' });
+const vg = JSON.parse(fs.readFileSync(path.join(run, 'findings.json'), 'utf8')).gaps.find(g => g.ruleId === 'visual-review');
+results.push({ id: 'V02', what: 'a visual-review finding is always confidence "verify" (model judgement)', ok: !!vg && vg.confidence === 'verify' });
 results.push({ id: 'K01', what: 'enforcement guard: all unit checks pass', ok: guardOk });
 let exploreOk = true; try { execFileSync(process.execPath, [path.join(here, 'explore-check.mjs')], { stdio: 'pipe', timeout: 180000 }); } catch { exploreOk = false; }
 results.push({ id: 'K02', what: 'bounded explorer: allowlist, ambiguity, origin lock, prod write block, budget, trace (explore-check.mjs)', ok: exploreOk });

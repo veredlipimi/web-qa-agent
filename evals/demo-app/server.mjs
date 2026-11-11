@@ -45,6 +45,7 @@ const pages = {
     const list = PRODUCTS.filter(p => !term || p.name.includes(term) || p.en.includes(term)); // case-sensitive on purpose
     return head('מוצרים — סטודיו ברקת') + `
     <h1>מוצרים</h1>
+    <script src="/assets/app.js"></script>
     <form method="get" action="/products" role="search"><label for="q">חיפוש</label>
       <input id="q" name="q" type="search" value=""><button>חפש</button></form>
     ${term ? `<p>תוצאות עבור: ${term}</p>` : ''}
@@ -177,6 +178,16 @@ const server = http.createServer((req, res) => {
     return res.end(head('התחברות — סטודיו ברקת') + `<h1>התחברות</h1><form method="post" action="/login"><label for="u">אימייל</label><input id="u" name="u" type="email" autocomplete="email"><label for="p">סיסמה</label><input id="p" name="p" type="password"><button>כניסה</button></form>` + foot); }
   if (u.pathname === '/.env') { res.writeHead(200, { 'content-type': 'text/plain' }); return res.end('DB_PASSWORD=demo-not-real\nSTRIPE_KEY=demo\n'); }
   if (u.pathname === '/api/reviews') { res.writeHead(500, { 'content-type': 'application/json' }); return res.end('{"error":"db down"}'); }
+  // PLANTED: a client bundle with secrets. Built at runtime so no secret-shaped string sits in the repo
+  // (GitHub push protection would rightly block it). Also contains values that are public by design.
+  if (u.pathname === '/assets/app.js') {
+    const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
+    const jwt = role => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ iss: 'supabase', role, ref: 'demo' })}.c2lnbmF0dXJlLWRlbW8tb25seQ`;
+    const stripeSecret = ['sk', 'live', 'DEMO0000000000000000000000'].join('_');
+    const stripePublic = ['pk', 'live', 'DEMO0000000000000000000000'].join('_');
+    res.writeHead(200, { 'content-type': 'application/javascript' });
+    return res.end(`const STRIPE_SECRET="${stripeSecret}";const STRIPE_PK="${stripePublic}";\nconst SUPABASE_SERVICE="${jwt('service_role')}";const SUPABASE_ANON="${jwt('anon')}";\nwindow.__cfg={STRIPE_PK,SUPABASE_ANON};`);
+  }
   if (u.pathname === '/api/stock') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"ok":true}'); }
   if (u.pathname === '/img/hero.svg') { res.writeHead(200, { 'content-type': 'image/svg+xml' }); return res.end('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120"><rect width="300" height="120" fill="#c9b"/></svg>'); }
   if (u.pathname === '/cart/add' && req.method === 'POST') {
