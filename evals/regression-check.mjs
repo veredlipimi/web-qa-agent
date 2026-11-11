@@ -120,7 +120,13 @@ results.push({ id: 'V01', what: 'visual sheets: one image per page with mobile +
 fs.writeFileSync(path.join(run, 'findings.manual.json'), JSON.stringify({ findings: [{ ruleId: 'visual-review', category: 'Responsive', severity: 'Medium', confidence: 'confirmed', title: 'Hero image overlaps the heading on mobile', page: base_url() + '/', viewport: 'mobile', steps: ['Open / on a phone'], expected: 'Heading readable', actual: 'Image covers it', evidence: { details: 'sheet' } }] }));
 execFileSync(process.execPath, [path.join(scripts, 'report.mjs'), '--run', run], { stdio: 'pipe' });
 const vg = JSON.parse(fs.readFileSync(path.join(run, 'findings.json'), 'utf8')).gaps.find(g => g.ruleId === 'visual-review');
+const gateV = JSON.parse(fs.readFileSync(path.join(run, 'findings.json'), 'utf8')).gate;
 results.push({ id: 'V02', what: 'a visual-review finding is always confidence "verify" (model judgement)', ok: !!vg && vg.confidence === 'verify' });
+fs.writeFileSync(path.join(run, 'findings.manual.json'), JSON.stringify({ findings: [{ ruleId: 'visual-review', category: 'Responsive', severity: 'High', title: 'Checkout button hidden behind the cookie banner on mobile', page: base_url() + '/cart', viewport: 'mobile', steps: ['Open /cart on a phone'], expected: 'Button visible', actual: 'Covered', evidence: { details: 'sheet' } }] }));
+execFileSync(process.execPath, [path.join(scripts, 'report.mjs'), '--run', run], { stdio: 'pipe' });
+const gv = JSON.parse(fs.readFileSync(path.join(run, 'findings.json'), 'utf8')).gate;
+results.push({ id: 'V06', what: 'a High visual-review gap is listed as suspected and does not block the gate until independently confirmed', ok: gv.suspected.some(x => /cookie banner/.test(x.title)) && !gv.blocking.some(x => /cookie banner/.test(x.title)) });
+fs.rmSync(path.join(run, 'findings.manual.json'), { force: true });
 // ---- Independent verification (Phase 5b), on a copy so the gate/delta checks above are untouched
 const runV = path.join(baseDir, 'run-v'); fs.cpSync(run, runV, { recursive: true });
 fs.rmSync(path.join(runV, 'findings.manual.json'), { force: true });
