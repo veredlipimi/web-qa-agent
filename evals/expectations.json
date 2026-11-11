@@ -143,6 +143,18 @@
       "rule": "action-false-success",
       "page": "/newsletter",
       "what": "Success message shown when the server answers 500 / network fails"
+    },
+    {
+      "id": "E19",
+      "rule": "secret-stripe-secret",
+      "page": "/products",
+      "what": "Live Stripe secret key in /assets/app.js"
+    },
+    {
+      "id": "E20",
+      "rule": "secret-jwt-privileged",
+      "page": "/products",
+      "what": "Supabase service_role JWT in /assets/app.js"
     }
   ],
   "notFind": [
@@ -251,6 +263,24 @@
       "rule": "action-no-failure-feedback",
       "page": "/newsletter-safe",
       "why": "shows an error on 500 and on network failure"
+    },
+    {
+      "id": "N18",
+      "rule": "secret-jwt-privileged",
+      "title": "role: anon",
+      "why": "an anon JWT is public by design"
+    },
+    {
+      "id": "N19",
+      "rule": "secret-stripe-secret",
+      "title": "pk_",
+      "why": "a publishable key is public by design"
+    },
+    {
+      "id": "N20",
+      "rule": "secret-stripe-secret",
+      "title": "DEMO0000000000000000000000",
+      "why": "the full secret value never appears in findings (redacted)"
     }
   ],
   "coverage": [
