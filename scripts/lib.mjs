@@ -37,6 +37,26 @@ export async function launchBrowser() {
   return chromium.launch({ executablePath, headless: process.env.QA_HEADED ? false : true });
 }
 
+// The only way an ad-hoc exploration script may open a browser context (the guard hook enforces it):
+// main-frame navigations stay on `origin`, and on production every non-GET request is blocked.
+// Fault injection still works: add your own ctx.route() handlers after this one.
+export async function guardedContext(browser, { origin, prod = true, ...opts }) {
+  if (!origin) throw new Error('guardedContext needs { origin }');
+  const allowed = new URL(origin).origin;
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...opts });
+  ctx.__blocked = [];
+  await ctx.route('**/*', route => {
+    const r = route.request();
+    const u = new URL(r.url());
+    if (r.isNavigationRequest() && r.frame().parentFrame() === null && /^https?:$/.test(u.protocol) && u.origin !== allowed) {
+      ctx.__blocked.push({ kind: 'off-origin navigation', url: r.url() }); return route.abort('blockedbyclient');
+    }
+    if (prod && !['GET', 'HEAD'].includes(r.method())) { ctx.__blocked.push({ kind: 'non-GET on production', method: r.method(), url: r.url() }); return route.abort('blockedbyclient'); }
+    return route.fallback();
+  });
+  return ctx;
+}
+
 export function ensureDir(p) { fs.mkdirSync(p, { recursive: true }); return p; }
 export function readJson(p, fallback) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return fallback; }

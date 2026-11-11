@@ -16,6 +16,7 @@ Give it a URL. It asks its questions once, shows a test plan, then crawls, audit
 - **Honest about browsers.** The audit runs on Chromium; on Deep the suite also runs on Firefox and WebKit/Safari. Any browser that didn't run is listed as not covered, so a pass on Chrome is never read as a pass on an iPhone.
 - **Evals for the agent itself.** A Hebrew demo storefront with planted gaps, redirect rules, gate/waiver and delta scenarios, and 14 false-positive controls, including ones taken from a real site. `node evals/regression-check.mjs` must stay green after every change.
 - **Requirements traceability.** Give it user stories, acceptance criteria, design notes or an existing test plan. It writes test cases only for what they say, runs them, and maps every requirement → test cases → PASS · FAIL · PARTIAL · NOT IMPLEMENTED · NOT VERIFIABLE · NOT TESTED → gaps. A FAIL with no linked gap, or a requirement with no case, is flagged in the report. The cases are also exported as a Google Sheets-ready CSV. Questions only product or dev can answer get their own section instead of becoming guesses.
+- **Bounded exploration.** The model picks the next step, and code decides whether it is allowed. `explore.mjs` accepts only the listed actions, by exact accessible name. It locks the browser to the site's origin at the network layer, blocks writes on production and enforces a step budget, and records every step with a trace. Page text is treated as data, never as instructions, and prompt-injection attempts are reported. The guard blocks MCP browser tools that bypass these limits.
 - **Plan gate.** One approval, then it runs to the end without stopping.
 - **Rules are enforced, not requested.** While the skill runs, a hook blocks edits outside `qa-runs/` (it reports, never fixes), state-changing HTTP calls to real hosts, attack and load tools, and `test.only`/`test.skip`. Rules without enforcement are wishes.
 - **Release gate + delta.** The report blocks on Critical/High by default, takes waivers that need a reason and an expiry (expired ones stop applying), has a strict mode, and exits 1 for CI with `--gate`. From the second run it shows **regressions**, **new** and **fixed** gaps.
@@ -70,7 +71,7 @@ You choose a depth (Quick / Standard / Deep), the environment (production read-o
 ## Test the agent
 
 ```bash
-node evals/regression-check.mjs     # 64 deterministic checks (70 with CutoverGate installed), ~2 min
+node evals/regression-check.mjs     # 72 deterministic checks (78 with CutoverGate installed), ~2 min
 node evals/requirements-check.mjs   # 22 traceability checks, no browser, ~1 s
 ```
 
@@ -97,6 +98,7 @@ MIT © Vered Li
 - **RTL ועברית:** בדיקות אוטומטיות של dir, יישור וכיוון שדות קלט, וצ׳קליסט ידני מלא.
 - **API ורשת:** קריאות שנכשלות, איטיות או כפולות, והזרקת תקלות.
 - **Evals לסוכן עצמו:** חנות דמו בעברית עם 20 פערים מתוכננים ו-13 בדיקות נגד false positives.
+- **חקירה בגבולות:** המודל בוחר את הצעד הבא, והקוד מחליט אם הוא מותר. הדפדפן נעול לאתר, אין כתיבה בפרודקשן, ויש תקציב צעדים ו-trace. טקסט בעמוד הוא מידע, לא הוראה.
 - **אכיפה, לא בקשה:** hook שחוסם עריכה מחוץ ל-qa-runs, בקשות POST לאתרים אמיתיים, כלי תקיפה ועומס, ו-test.skip.
 - **שער שחרור ודלתא:** פטורים עם סיבה ותאריך תפוגה, מצב קפדני, ומההרצה השנייה: רגרסיות, פערים חדשים ופערים שתוקנו.
 - **QA להגירות אתרים:** בדיקת מפת הפניות (301) ובדיקת קבצים מקושרים (PDF וכו'). כשמותקן [CutoverGate](https://github.com/veredlipimi/cutovergate), הבדיקה רצה דרכו, ו-`cutovergate qa` מריץ את הסוכן על עמודי היעד אחרי שהשער עבר.
