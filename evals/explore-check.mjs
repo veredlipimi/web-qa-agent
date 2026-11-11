@@ -44,6 +44,16 @@ try {
   const fin = await run('finish', '--out', out, '--reason', 'eval');
   const hist = JSON.parse(fs.readFileSync(path.join(out, 'explore', 'history.json'), 'utf8'));
   check('X09', 'finish writes history.json and trace.zip', fin.j?.finished && fs.existsSync(path.join(out, 'explore', 'trace.zip')) && hist.history.length >= 8 && hist.rejected >= 2);
+  // Kill switch: a second session, stopped by <run>/explore/STOP.
+  const out2 = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-explore-kill-'));
+  await run('start', '--url', base + '/about', '--out', out2, '--prod');
+  fs.writeFileSync(path.join(out2, 'explore', 'STOP'), '');
+  const k = await run('act', '--out', out2, JSON.stringify({ action: 'reload' }));
+  await new Promise(r => setTimeout(r, 500));
+  check('X11', 'kill switch: STOP file refuses the next action and closes the session (history + trace saved)',
+    k.j?.stopped && /kill switch/.test(k.j?.rejected || '') && fs.existsSync(path.join(out2, 'explore', 'trace.zip')) && !fs.existsSync(path.join(out2, 'explore', 'session.json')));
+  fs.rmSync(out2, { recursive: true, force: true });
+
   // guardedContext(): the helper ad-hoc exploration scripts must use.
   const { launchBrowser, guardedContext } = await import(path.join(here, '..', 'scripts', 'lib.mjs'));
   const b = await launchBrowser();
@@ -66,4 +76,4 @@ for (const r of results) console.log(`${r.ok ? '✓' : '✘'} ${r.id}  ${r.what}
 const failed = results.filter(r => !r.ok).length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
 fs.rmSync(out, { recursive: true, force: true });
-process.exit(failed || results.length < 10 ? 1 : 0);
+process.exit(failed || results.length < 11 ? 1 : 0);
