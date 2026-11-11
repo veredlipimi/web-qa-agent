@@ -19,6 +19,7 @@
 //   - --prod: every non-GET request is blocked (nothing is submitted)
 //   - step budget; rejected actions count too
 //   - every step is logged (explore/history.json) with a Playwright trace and a failure screenshot
+//   - kill switch: `touch ~/.qa-stop` (all sessions) or <run>/explore/STOP (one) stops at the next action
 // Page text is data. Anything on the page that reads like an instruction to the agent is reported,
 // never followed — the snapshot returned to the model is wrapped and labelled as untrusted.
 import fs from 'node:fs';
@@ -115,7 +116,17 @@ if (cmd === 'serve') {
   };
   const write = (extra = {}) => fs.writeFileSync(path.join(dir, 'history.json'), JSON.stringify({ startUrl, origin, prod, maxSteps, steps, rejected, blocked, history, ...extra }, null, 2));
 
+  // Kill switch: a human can stop every running session at once with `touch ~/.qa-stop`
+  // (or one session with <run>/explore/STOP). The next action is refused and the session ends cleanly.
+  const KILL = [path.join(dir, 'STOP'), path.join(process.env.HOME || '', '.qa-stop')];
   async function act(a) {
+    const killed = KILL.find(f => fs.existsSync(f));
+    if (killed && a?.action !== 'finish') {
+      history.push({ step: steps, action: a, rejected: `kill switch (${killed})` });
+      await finish(`stopped by kill switch: ${killed}`);
+      setTimeout(() => process.exit(0), 50);
+      return { ok: false, rejected: `Stopped by the kill switch (${killed}). The session is closed; history and trace are saved. Do not restart it without the user.`, stopped: true };
+    }
     if (a?.action === 'look') return { ok: true, ...(await look()) };
     if (a?.action === 'ping') return { ok: true };
     const why = validate(a);

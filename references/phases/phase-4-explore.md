@@ -83,6 +83,7 @@ node <skill>/scripts/explore.mjs finish --out <run> --reason "cart journey done"
   budget is spent. Rejected actions count against the budget. If a name is ambiguous, refine
   it; never guess between look-alike elements.
 - **Use `--prod` on production.** It blocks every non-GET request.
+- **Kill switch:** `touch ~/.qa-stop` stops every running session at its next action, and `<run>/explore/STOP` stops just one session. History and trace are kept. Never restart a stopped session without the user.
 - **Evidence:** `<run>/explore/history.json` and `trace.zip`. Cite them in findings.
 
 **Scripted checks** (fault injection, timing, assertions): write a short script in
