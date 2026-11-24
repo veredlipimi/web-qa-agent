@@ -29,6 +29,7 @@ Give it a URL. It asks its questions once, shows a test plan, then crawls, audit
   - `test.only` and `test.skip`.
 
   If the hook can't read its input, it blocks. This guards against the agent's mistakes. It is not a security boundary: it only sees the tool calls Claude Code makes, and pattern matching can be bypassed on purpose.
+- **"Done" is checked by a hook, not promised in the prompt.** A Stop hook runs each time the agent tries to finish. Once execution has started, the run can't end until the report is built and newer than every findings file, every gap has steps, expected, actual and a screenshot, log or request, every check that didn't run names its reason, and every Critical/High gap was independently verified (or the skip is explained). The hook sends the agent back with the open items. After 3 rounds it lets the agent stop and records the run as incomplete, so it can't loop forever and an unfinished run is never shown as finished.
 - **Release gate + delta.** The report blocks on Critical/High by default, takes waivers that need a reason and an expiry (expired ones stop applying), has a strict mode, and exits 1 for CI with `--gate`. From the second run it shows **regressions**, **new** and **fixed** gaps.
 - **Migration QA, with [CutoverGate](https://github.com/veredlipimi/cutovergate).** `redirect-check.mjs` checks a redirect map (old → new) on the live origin: PASS · WRONG-TARGET · WRONG-STATUS · CHAIN · MISSING · ERROR. When CutoverGate is installed, it is used as the engine, which adds exceptions with expiry, delta and a gate report. Starting from the other side, `cutovergate qa` first gates the redirects and then runs this agent on the destination pages. Linked PDFs and other files are probed too.
 - **SSO-friendly login.** `save-auth.mjs` opens a browser, you log in by hand (SSO/MFA work), and the session is reused. No passwords in chat.
@@ -83,6 +84,8 @@ You choose a depth (Quick / Standard / Deep), the environment (production read-o
 ```bash
 node evals/regression-check.mjs     # 83 deterministic checks (89 with CutoverGate installed), ~2 min
 node evals/requirements-check.mjs   # 22 traceability checks, no browser, ~1 s
+node evals/guard-check.mjs          # 30 guard checks (PreToolUse hook)
+node evals/finish-check.mjs         # 23 finish-gate checks (Stop hook)
 ```
 
 See [`evals/README.md`](evals/README.md) for the LLM-graded behaviour cases.
@@ -110,6 +113,7 @@ MIT © Vered Li
 - **Evals לסוכן עצמו:** חנות דמו בעברית עם 20 פערים מתוכננים ו-13 בדיקות נגד false positives.
 - **חקירה בגבולות:** המודל בוחר את הצעד הבא, והקוד מחליט אם הוא מותר. ברירת המחדל היא קריאה בלבד: בלי כתיבה, בלי WebSocket ובלי לחיצה על "התנתק" או "מחק". יש נעילת ניווט לאתר, תקציב צעדים, trace ומתג עצירה. טקסט בעמוד הוא מידע, לא הוראה.
 - **מעקה בטיחות בקוד:** hook שחוסם עריכה מחוץ ל-qa-runs, בקשות כתיבה לאתרים אמיתיים, כלי תקיפה ועומס, ו-test.skip. הוא מגן מטעויות של הסוכן, אבל הוא לא גבול אבטחה.
+- **"סיימתי" נבדק בקוד:** hook של Stop רץ בכל פעם שהסוכן מנסה לסיים. הוא לא מאפשר לסיים בלי דוח עדכני, בלי ראיות לכל פער, בלי סיבה לכל מה שלא נבדק, ובלי אימות עצמאי לפערי Critical/High. אחרי 3 סבבים הוא משחרר ומסמן את ההרצה כלא גמורה.
 - **שער שחרור ודלתא:** פטורים עם סיבה ותאריך תפוגה, מצב קפדני, ומההרצה השנייה: רגרסיות, פערים חדשים ופערים שתוקנו.
 - **QA להגירות אתרים:** בדיקת מפת הפניות (301) ובדיקת קבצים מקושרים (PDF וכו'). כשמותקן [CutoverGate](https://github.com/veredlipimi/cutovergate), הבדיקה רצה דרכו, ו-`cutovergate qa` מריץ את הסוכן על עמודי היעד אחרי שהשער עבר.
 - **מעקב דרישות:** נותנים לו user stories, קריטריוני קבלה, הערות עיצוב או Test Plan קיים. הוא כותב מקרי בדיקה רק למה שכתוב בהם, מריץ אותם, ומציג לכל דרישה את מקרי הבדיקה, הסטטוס (PASS, FAIL, PARTIAL, NOT IMPLEMENTED, NOT VERIFIABLE, NOT TESTED) והפערים. FAIL בלי פער מקושר, או דרישה בלי מקרה בדיקה, מסומנים בדוח. מקרי הבדיקה יוצאים גם כ-CSV מוכן ל-Google Sheets, ושאלות פתוחות למוצר ולפיתוח מקבלות סעיף משלהן.

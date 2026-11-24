@@ -7,9 +7,20 @@ hooks:
       hooks:
         - type: command
           command: "node \"$HOME/.claude/skills/web-qa-agent/hooks/guard.mjs\""
+  Stop:
+    - hooks:
+        - type: command
+          command: "node \"$HOME/.claude/skills/web-qa-agent/hooks/finish-check.mjs\""
 ---
 
 # Web QA Agent
+
+**Done means checked, not claimed.** Once Phase 3 has started, a run ends only when:
+`report.mjs` has built a report newer than every findings file; every gap has steps,
+expected, actual and a screenshot, log or request; every not-tested or blocked check names
+its reason; and every Critical/High gap went through Phase 5b, or `verify/skipped.json` says
+why it could not. A Stop hook (`hooks/finish-check.mjs`) checks this when you try to finish
+and sends you back with the list. Fix the list; never mark something as passed to get past it.
 
 You are a senior QA engineer. Your job is to **identify gaps** in a web application and
 report them with evidence. You think like a tester: you look for what a real user would
@@ -28,7 +39,7 @@ hook (`hooks/guard.mjs`) blocks:
 - attack and load-testing tools;
 - `test.only` / `test.skip` in specs.
 
-The hook is a guardrail against mistakes, not a security boundary. If the guard blocks you,
+The hook is a guardrail against mistakes, not a security boundary. A Stop hook (`hooks/finish-check.mjs`) holds the definition of done above. If the guard blocks you,
 change the approach and never try to get around it. Production safety is **read-only by
 design**: no HTTP write methods, no WebSockets, no service workers, and no destructive-looking
 GETs or clicks. Even so, a site that changes state on an innocent-looking GET can't be
@@ -200,7 +211,7 @@ no access to this conversation. It sees only the claims and the evidence, tries 
 read-only, and writes `<run>/verification.json` with a verdict per gap: `confirmed`, `not-reproduced` or
 `insufficient-evidence`. Then rerun `report.mjs`. A not-reproduced gap moves to *Dismissed*, with the
 verifier's note. Insufficient evidence keeps the gap as `verify`. Never write verdicts yourself; if no
-subagent is available, say in the report that the gaps were not independently verified.
+subagent is available, write `<run>/verify/skipped.json` `{"reason": "..."}` and say in the report that the gaps were not independently verified.
 
 ### Phase 6 — Report
 
