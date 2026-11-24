@@ -26,7 +26,11 @@ Give it a URL. It asks its questions once, shows a test plan, then crawls, audit
   - state-changing HTTP to real hosts (curl, wget, httpie, inline Python and Node), and MCP fetch tools that write;
   - unguarded browser scripts;
   - attack and load tools;
-  - `test.only` and `test.skip`.
+  - `test.only` and `test.skip`;
+  - destructive local commands (`rm -r` outside `qa-runs/` or temp, `git push --force`, `git reset --hard`, `git clean -f`);
+  - reading or editing local secrets (`.env`, keys, `~/.ssh`, `~/.aws`, saved login sessions).
+
+  A Notification hook shows a macOS notification when Claude is waiting for you. Check that all hooks are registered with `/hooks` in Claude Code.
 
   If the hook can't read its input, it blocks. This guards against the agent's mistakes. It is not a security boundary: it only sees the tool calls Claude Code makes, and pattern matching can be bypassed on purpose.
 - **"Done" is checked by a hook, not promised in the prompt.** A Stop hook runs each time the agent tries to finish. Once execution has started, the run can't end until the report is built and newer than every findings file, every gap has steps, expected, actual and a screenshot, log or request, every check that didn't run names its reason, and every Critical/High gap was independently verified (or the skip is explained). The hook sends the agent back with the open items. After 3 rounds it lets the agent stop and records the run as incomplete, so it can't loop forever and an unfinished run is never shown as finished.
@@ -84,7 +88,7 @@ You choose a depth (Quick / Standard / Deep), the environment (production read-o
 ```bash
 node evals/regression-check.mjs     # 83 deterministic checks (89 with CutoverGate installed), ~2 min
 node evals/requirements-check.mjs   # 22 traceability checks, no browser, ~1 s
-node evals/guard-check.mjs          # 30 guard checks (PreToolUse hook)
+node evals/guard-check.mjs          # 55 guard checks (PreToolUse + Notification hooks)
 node evals/finish-check.mjs         # 23 finish-gate checks (Stop hook)
 ```
 
@@ -112,7 +116,7 @@ MIT © Vered Li
 - **API ורשת:** קריאות שנכשלות, איטיות או כפולות, והזרקת תקלות.
 - **Evals לסוכן עצמו:** חנות דמו בעברית עם 20 פערים מתוכננים ו-13 בדיקות נגד false positives.
 - **חקירה בגבולות:** המודל בוחר את הצעד הבא, והקוד מחליט אם הוא מותר. ברירת המחדל היא קריאה בלבד: בלי כתיבה, בלי WebSocket ובלי לחיצה על "התנתק" או "מחק". יש נעילת ניווט לאתר, תקציב צעדים, trace ומתג עצירה. טקסט בעמוד הוא מידע, לא הוראה.
-- **מעקה בטיחות בקוד:** hook שחוסם עריכה מחוץ ל-qa-runs, בקשות כתיבה לאתרים אמיתיים, כלי תקיפה ועומס, ו-test.skip. הוא מגן מטעויות של הסוכן, אבל הוא לא גבול אבטחה.
+- **מעקה בטיחות בקוד:** hook שחוסם עריכה מחוץ ל-qa-runs, בקשות כתיבה לאתרים אמיתיים, כלי תקיפה ועומס, test.skip, פקודות הרסניות (rm -rf, push --force, reset --hard) וקריאה של קבצי סודות (.env, מפתחות). hook נוסף שולח התראה במק כש-Claude מחכה לך. הוא מגן מטעויות של הסוכן, אבל הוא לא גבול אבטחה.
 - **"סיימתי" נבדק בקוד:** hook של Stop רץ בכל פעם שהסוכן מנסה לסיים. הוא לא מאפשר לסיים בלי דוח עדכני, בלי ראיות לכל פער, בלי סיבה לכל מה שלא נבדק, ובלי אימות עצמאי לפערי Critical/High. אחרי 3 סבבים הוא משחרר ומסמן את ההרצה כלא גמורה.
 - **שער שחרור ודלתא:** פטורים עם סיבה ותאריך תפוגה, מצב קפדני, ומההרצה השנייה: רגרסיות, פערים חדשים ופערים שתוקנו.
 - **QA להגירות אתרים:** בדיקת מפת הפניות (301) ובדיקת קבצים מקושרים (PDF וכו'). כשמותקן [CutoverGate](https://github.com/veredlipimi/cutovergate), הבדיקה רצה דרכו, ו-`cutovergate qa` מריץ את הסוכן על עמודי היעד אחרי שהשער עבר.

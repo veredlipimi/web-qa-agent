@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Unit tests for hooks/guard-rules.mjs — the enforcement layer must block what it promises
 // and must not block normal QA work.
-import { checkBash, checkWrite, checkTool } from '../hooks/guard-rules.mjs';
+import { checkBash, checkWrite, checkTool, checkSecretPath } from '../hooks/guard-rules.mjs';
 const cases = [
   ['block', 'bash', 'curl -X POST https://shop.example.com/api/orders -d x=1'],
   ['block', 'bash', 'curl --data "a=1" https://example.com/contact'],
@@ -34,6 +34,30 @@ const cases = [
   ['block', 'write', '/Users/v/qa-runs/r/explore/pp.mjs', "const b = await puppeteer.launch();"],
   ['block', 'tool', 'mcp__fetch__fetch', { url: 'https://shop.example.com/api', method: 'POST' }],
   ['allow', 'tool', 'mcp__fetch__fetch', { url: 'https://shop.example.com/' }],
+  // Destructive local commands (2026-11-24)
+  ['block', 'bash', 'rm -rf ~/projects/shop'],
+  ['block', 'bash', 'cd qa-runs && rm -rf ../src'],
+  ['block', 'bash', 'rm -rf qa-runs/../src'],
+  ['allow', 'bash', 'rm -rf qa-runs/shop-20261124/suite/node_modules'],
+  ['allow', 'bash', 'rm -rf /tmp/qa-eval-x'],
+  ['block', 'bash', 'git push --force origin main'],
+  ['block', 'bash', 'git push -f'],
+  ['block', 'bash', 'git reset --hard HEAD~1'],
+  ['block', 'bash', 'git clean -fdx'],
+  ['allow', 'bash', 'git status && git log -3'],
+  // Local secrets (2026-11-24)
+  ['block', 'bash', 'cat .env'],
+  ['block', 'bash', 'grep API_KEY .env.local'],
+  ['block', 'bash', 'cat ~/.ssh/id_rsa'],
+  ['allow', 'bash', 'cat .env.example'],
+  ['allow', 'bash', 'curl -sI https://shop.example.com/.env'],
+  ['allow', 'bash', 'node scripts/audit.mjs --storage-state qa-runs/r/auth.json --out qa-runs/r'],
+  ['block', 'read', '/Users/v/shop/.env.production'],
+  ['block', 'read', '/Users/v/qa-runs/r/auth.json'],
+  ['block', 'read', '/Users/v/.aws/credentials'],
+  ['allow', 'read', '/Users/v/shop/.env.example'],
+  ['allow', 'read', '/Users/v/qa-runs/r/key-findings.md'],
+  ['block', 'write', '/Users/v/qa-runs/r/.env', 'TOKEN=x'],
 ];
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -41,12 +65,21 @@ import { fileURLToPath } from 'node:url';
 const hook = new URL('../hooks/guard.mjs', import.meta.url);
 const bad = spawnSync(process.execPath, [fileURLToPath(hook)], { input: 'not json' });
 let fail = bad.status === 2 ? 0 : 1;
+// The hook routes Read to the secret check (not only the unit rule).
+const rd = spawnSync(process.execPath, [fileURLToPath(hook)], { input: JSON.stringify({ tool_name: 'Read', tool_input: { file_path: '/Users/v/shop/.env' } }) });
+if (rd.status !== 2) fail++;
+console.log(`${rd.status === 2 ? '✓' : '✘'} block hook: Read of .env → exit 2`);
+// The Notification hook never blocks or fails.
+const nt = spawnSync(process.execPath, [fileURLToPath(new URL('../hooks/notify.mjs', import.meta.url))], { input: JSON.stringify({ message: 'Claude needs your "go"' }), env: { ...process.env, QA_NO_NOTIFY: '1' } });
+if (nt.status !== 0) fail++;
+console.log(`${nt.status === 0 ? '✓' : '✘'} notify hook: exits 0`);
 console.log(`${bad.status === 2 ? '✓' : '✘'} block hook: malformed input → exit 2 (fail-closed)`);
 for (const [want, kind, a, b] of cases) {
-  const r = kind === 'bash' ? checkBash(a) : kind === 'tool' ? checkTool(a, b || {}) : checkWrite(a, b);
+  const r = kind === 'bash' ? checkBash(a) : kind === 'tool' ? checkTool(a, b || {}) : kind === 'read' ? checkSecretPath(a) : checkWrite(a, b);
   const got = r ? 'block' : 'allow';
   const ok = got === want; if (!ok) fail++;
   console.log(`${ok ? '✓' : '✘'} ${want.padEnd(5)} ${kind}: ${a}${b ? ` (${String(typeof b === "string" ? b : JSON.stringify(b)).slice(0, 30)})` : ''}`);
 }
-console.log(`\n${cases.length - fail}/${cases.length} guard checks passed`);
+const total = cases.length + 3; // + fail-closed, Read routing, notify
+console.log(`\n${total - fail}/${total} guard checks passed`);
 process.exit(fail ? 1 : 0);

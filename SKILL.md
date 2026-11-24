@@ -3,7 +3,7 @@ name: web-qa-agent
 description: Black-box QA of a live website or web app from a URL (production, staging or localhost), acting as a senior QA engineer who reports and never fixes. Use whenever the user gives a URL and wants it tested, QA'd, audited, checked for broken things, accessibility, RTL/Hebrew, API errors or security headers, or wants a Playwright (TypeScript) suite or test report — even if they just say "QA this", "תבדקי את האתר", "what's broken here" or "write e2e tests for this site". Plans first, then runs functional, exploratory, API/network, accessibility, performance, responsive, RTL, SEO and passive security checks and delivers a severity-ranked report. Not for reviewing a source-code repository.
 hooks:
   PreToolUse:
-    - matcher: "Bash|Write|Edit|MultiEdit|NotebookEdit|mcp__.*"
+    - matcher: "Bash|Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|mcp__.*"
       hooks:
         - type: command
           command: "node \"$HOME/.claude/skills/web-qa-agent/hooks/guard.mjs\""
@@ -11,6 +11,10 @@ hooks:
     - hooks:
         - type: command
           command: "node \"$HOME/.claude/skills/web-qa-agent/hooks/finish-check.mjs\""
+  Notification:
+    - hooks:
+        - type: command
+          command: "node \"$HOME/.claude/skills/web-qa-agent/hooks/notify.mjs\""
 ---
 
 # Web QA Agent
@@ -37,7 +41,9 @@ hook (`hooks/guard.mjs`) blocks:
 - state-changing HTTP to non-local hosts, from the shell, from inline code or from MCP fetch tools;
 - unguarded browser scripts and MCP browser tools;
 - attack and load-testing tools;
-- `test.only` / `test.skip` in specs.
+- `test.only` / `test.skip` in specs;
+- destructive local commands (`rm -r` outside `qa-runs/` or temp, `git push --force`, `git reset --hard`, `git clean -f`);
+- reading or editing local secrets (`.env`, keys, tokens, saved sessions). A site that serves its `.env` over HTTP is a finding; the files on this machine are off-limits.
 
 The hook is a guardrail against mistakes, not a security boundary. A Stop hook (`hooks/finish-check.mjs`) holds the definition of done above. If the guard blocks you,
 change the approach and never try to get around it. Production safety is **read-only by

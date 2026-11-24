@@ -6,8 +6,43 @@ import path from 'node:path';
 
 const LOCAL = /^(https?:\/\/)?(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?(\/|$)/i;
 
+// Local secrets: the agent never reads them. A site that EXPOSES .env over HTTP is a finding (audit.mjs
+// probes it remotely); the files on this machine are not the agent's business.
+const SECRET_FILE = /(^|[\\/\s'"=])(\.env(\.(?!example\b|sample\b|template\b|dist\b)[\w.-]+)?|\.npmrc|\.netrc|\.pgpass|id_(rsa|ed25519|ecdsa|dsa)|[\w.-]+\.(pem|key|p12|pfx|keystore)|credentials(\.json)?|secrets?\.(json|ya?ml|toml)|auth(-state)?\.json|storage-?state[\w.-]*\.json)(?=$|[\s'"/;|&)])/i;
+const SECRET_DIR = /(^|[\\/\s'"=])(~\/|\$HOME\/|\/Users\/[^/\s]+\/|\/home\/[^/\s]+\/)?\.(ssh|aws|gnupg|kube|docker|config\/gh)(\/|$|\s)/i;
+
+export function checkSecretPath(p) {
+  const s = ` ${String(p || '')} `;
+  if (SECRET_FILE.test(s) || SECRET_DIR.test(s))
+    return `${String(p).trim()} looks like a local secret (.env, keys, tokens, saved sessions). The agent never reads or edits secrets. Saved login state is passed to scripts with --storage-state, not read. If the site under test exposes such a file over HTTP, report that as a finding.`;
+  return null;
+}
+
+// Destructive local commands: nothing in a QA run needs them, and they can't be undone.
+function checkDestructive(c) {
+  const rm = c.match(/(^|[;&|(\s])rm\s+(-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)\b[^;&|]*/);
+  if (rm) {
+    const targets = rm[0].replace(/^[;&|(\s]*rm\s+/, '').split(/\s+/).filter(t => t && !t.startsWith('-'));
+    const inside = t => !t.includes('..') && (/(^|\/)qa-runs\/[^\s]+/.test(t) || /^(\/tmp|\/private\/var\/folders|\$TMPDIR)\/[^\s]+/.test(t));
+    if (!targets.length || !targets.every(inside))
+      return `Recursive delete (${rm[0].trim().slice(0, 60)}) outside a qa-runs/<run>/ or temp folder. The agent deletes nothing else; ask the user.`;
+  }
+  if (/\bgit\s+push\b[^;&|]*(\s--force(-with-lease)?\b|\s-f\b|\s\+\S)/.test(c)) return 'git push --force rewrites shared history. Not part of QA work; ask the user.';
+  if (/\bgit\s+reset\s+[^;&|]*--hard\b/.test(c)) return 'git reset --hard discards work that may not be recoverable. Not part of QA work; ask the user.';
+  if (/\bgit\s+clean\s+[^;&|]*-[a-zA-Z]*f/.test(c)) return 'git clean -f deletes untracked files permanently. Not part of QA work; ask the user.';
+  if (/\bgit\s+(checkout|restore)\s+[^;&|]*(\s--\s+\.|\s\.\s*$|--staged\s+\.)/.test(c)) return 'Discarding all local changes is not part of QA work; ask the user.';
+  if (/(^|[;&|\s])(mkfs|dd\s+if=|diskutil\s+erase|shred)\b/.test(c)) return 'Disk-level destructive command. Never part of QA work.';
+  return null;
+}
+
 export function checkBash(cmd) {
   const c = ` ${cmd} `;
+  const destructive = checkDestructive(c);
+  if (destructive) return destructive;
+  if (/\b(cat|less|more|head|tail|bat|nl|strings|xxd|od|grep|rg|awk|sed|cp|scp|base64|source|open)\b/.test(c) || /(^|\s)\.\s+\S/.test(c)) {
+    const secret = checkSecretPath(c.replace(/\.env\.(example|sample|template|dist)\b/g, ''));
+    if (secret) return secret;
+  }
   if (/\b(sqlmap|nikto|hydra|medusa|wpscan|nmap|masscan|ffuf|gobuster|dirb|dirbuster|feroxbuster|nuclei|zap-cli|burpsuite|commix|xsstrike)\b/i.test(c))
     return 'Active security / attack tools are out of scope. Security checks are passive only.';
   if (/\b(ab\s+-n|wrk\s|siege\s|k6\s+run|artillery\s+run|locust\b|hey\s+-n|vegeta\s+attack)/i.test(c))
@@ -50,6 +85,8 @@ export function checkTool(name, input = {}) {
 }
 
 export function checkWrite(filePath, content) {
+  const secret = checkSecretPath(filePath);
+  if (secret) return secret;
   // Normalise first: "qa-runs/../Projects/app.js" must not count as inside qa-runs.
   const p = path.resolve(String(filePath || ''));
   const tmp = path.resolve(os.tmpdir());
