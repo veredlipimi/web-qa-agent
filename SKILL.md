@@ -172,6 +172,11 @@ and the test-case style are in `references/test-plan-template.md` §10. Rules:
 Show a ≤15-line summary and ask for a single "go" (or changes). This is the only approval
 gate. After "go", run Phases 3–6 without stopping.
 
+Pages added at approval ("go + /booking") must enter `sitemap.json` before Phase 3: every script
+(audit, field matrix, action probes) reads the sitemap, so a page that is only in the plan is never tested.
+Write them one per line to `<run>/added-pages.txt` and re-crawl:
+`node <skill>/scripts/crawl.mjs --url <URL> --urls <run>/added-pages.txt --max-pages <budget + added> --out <run>`.
+
 ## Effort budget
 
 | | Quick | Standard | Deep |

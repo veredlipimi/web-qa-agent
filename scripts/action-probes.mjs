@@ -55,6 +55,13 @@ for (const p of sitemap.pages.filter(p => p.status === 200)) for (const f of p.f
   if (f.fields.some(x => x.type === 'password')) { notCovered.push({ page: p.finalUrl || p.url, reason: `form #${f.index} is a login/password form — not probed` }); continue; }
   forms.push({ page: p.finalUrl || p.url, form: f, fields });
 }
+// Spread the budget across pages: one form per page first, then the rest. Three product cards on one
+// page must not use up --max-forms before the newsletter or checkout form is reached.
+const byPage = new Map();
+for (const f of forms) { if (!byPage.has(f.page)) byPage.set(f.page, []); byPage.get(f.page).push(f); }
+const lists = [...byPage.values()];
+forms.length = 0;
+for (let i = 0; lists.some(l => i < l.length); i++) for (const l of lists) if (i < l.length) forms.push(l[i]);
 
 const browser = await launchBrowser();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...SAFE_CONTEXT, ...(args['storage-state'] ? { storageState: args['storage-state'] } : {}) });
@@ -117,6 +124,7 @@ async function probe(url, form, fields, mode) {
 
 const groupMax = rs => Math.max(0, ...Object.values(rs.reduce((a, r) => { const k = `${r.method} ${r.url}`; a[k] = (a[k] || 0) + 1; return a; }, {})));
 
+for (const { page: url, form } of forms.slice(maxForms)) notCovered.push({ page: url, reason: `form #${form.index}: over the --max-forms ${maxForms} budget — not probed` });
 for (const { page: url, form, fields } of forms.slice(0, maxForms)) {
   const where = `form #${form.index} on ${new URL(url).pathname}`;
   const res = {};
@@ -125,8 +133,25 @@ for (const { page: url, form, fields } of forms.slice(0, maxForms)) {
   const base = res['ok-200'];
   if (base.error) { coverage.push({ category: 'Functional', page: url, viewport: 'desktop', status: 'blocked', reason: `${where}: ${base.error}` }); continue; }
   if (!base.requests.length) {
-    const reason = base.native ? `${where} posts natively (server-rendered result) — failure handling needs staging` : `${where}: submit triggered no request (client validation or custom control)`;
-    coverage.push({ category: 'Functional', page: url, viewport: 'desktop', status: 'not-tested', reason });
+    if (base.native) {
+      // Native (server-rendered) form: the submit never leaves the page, so failure handling can't be
+      // simulated here — but a second click that fires a second submit event is observable.
+      const d = res.double;
+      const twice = !d.error && (d.native || 0) >= 2;
+      coverage.push({ category: 'Functional', page: url, viewport: 'desktop', status: 'tested', reason: `${where}: double submit checked (native form)` });
+      coverage.push({ category: 'Functional', page: url, viewport: 'desktop', status: 'not-tested', reason: `${where} posts natively (server-rendered result) — failure handling (500/offline) needs staging` });
+      const moneyN = MONEY.test(`${url} ${form.action}`);
+      if (twice) add({ ruleId: 'action-double-submit', severity: moneyN ? 'High' : 'Medium', confidence: 'verify', page: url,
+        title: `Double-click on submit fires the form ${d.native} times (${where})`,
+        steps: [`Open ${url}`, 'Fill the form with valid data', 'Click submit twice quickly'],
+        expected: 'One submission — the button is disabled after the first click, or the server rejects the repeat',
+        actual: `The form fired ${d.native} submit events; nothing disabled the button (submits were held in the browser)`,
+        impact: 'Likely: a native form without a guard posts twice when the second click lands before the page unloads — a duplicate record or charge. Confirm on staging.',
+        remediation: 'Disable the submit button on submit, and make the endpoint idempotent (idempotency key or one-time token).',
+        evidence: { screenshot: d.screenshot, details: `submit events: ${d.native}\nrequests: none (native submit held in the browser)` } });
+      continue;
+    }
+    coverage.push({ category: 'Functional', page: url, viewport: 'desktop', status: 'not-tested', reason: `${where}: submit triggered no request (client validation or custom control)` });
     continue;
   }
   coverage.push({ category: 'Functional', page: url, viewport: 'desktop', status: 'tested' });
