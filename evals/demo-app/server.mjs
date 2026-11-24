@@ -130,6 +130,11 @@ const pages = {
       });
     </script>` + foot,
 
+  // CONTROL native form: the button is disabled on submit, so a second click can't post again.
+  '/signup-native-safe': () => head('הרשמה — סטודיו ברקת') + `<h1>הרשמה לסדנה</h1>
+    <form method="post" action="/api/workshop" onsubmit="this.querySelector('button').disabled = true"><label for="ws-name">שם מלא</label><input id="ws-name" name="name" autocomplete="name" required>
+      <button type="submit">הרשמה</button></form>` + foot,
+
   // CONTROL newsletter form: button disabled while in flight, success only on a confirmed response.
   '/newsletter-safe': () => head('ניוזלטר — סטודיו ברקת') + `<h1>הרשמה לניוזלטר</h1>
     <form id="ns" method="post" action="/api/subscribe"><label for="ns-email">אימייל</label><input id="ns-email" name="email" type="email" autocomplete="email" required>
@@ -155,7 +160,7 @@ const pages = {
 
   // CONTROL policy page: correct RTL, labels, one h1, nothing to report except site-wide headers.
   '/policy': () => head('מדיניות פרטיות — סטודיו ברקת') + `<h1>מדיניות פרטיות</h1>
-    <p>אנחנו שומרים רק את המידע שנדרש לטיפול בהזמנה.</p><p><a href="/search-safe">חיפוש באתר</a> · <a href="/booking">קביעת תור</a> · <a href="/files/price-list.pdf">מחירון (PDF)</a> · <a href="/files/terms.pdf">תקנון (PDF)</a> · <a href="/newsletter">ניוזלטר</a> · <a href="/newsletter-safe">ניוזלטר (בקרה)</a></p>` + foot,
+    <p>אנחנו שומרים רק את המידע שנדרש לטיפול בהזמנה.</p><p><a href="/search-safe">חיפוש באתר</a> · <a href="/booking">קביעת תור</a> · <a href="/files/price-list.pdf">מחירון (PDF)</a> · <a href="/files/terms.pdf">תקנון (PDF)</a> · <a href="/newsletter">ניוזלטר</a> · <a href="/newsletter-safe">ניוזלטר (בקרה)</a> · <a href="/signup-native-safe">הרשמה לסדנה</a></p>` + foot,
 };
 
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }

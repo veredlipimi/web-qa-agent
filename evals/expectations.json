@@ -155,9 +155,21 @@
       "rule": "secret-jwt-privileged",
       "page": "/products",
       "what": "Supabase service_role JWT in /assets/app.js"
+    },
+    {
+      "id": "E21",
+      "rule": "action-double-submit",
+      "page": "/contact",
+      "what": "Native (server-rendered) form with no guard fires twice on a double click"
     }
   ],
   "notFind": [
+    {
+      "id": "N21",
+      "rule": "action-double-submit",
+      "page": "/signup-native-safe",
+      "why": "native form that disables its button on submit"
+    },
     {
       "id": "N01",
       "rule": "sec-reflected-input",
