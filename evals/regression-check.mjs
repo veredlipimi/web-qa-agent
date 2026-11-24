@@ -147,6 +147,8 @@ results.push({ id: 'V05', what: 'insufficient-evidence → kept as "verify"; con
 results.push({ id: 'K01', what: 'enforcement guard: all unit checks pass', ok: guardOk });
 let exploreOk = true; try { execFileSync(process.execPath, [path.join(here, 'explore-check.mjs')], { stdio: 'pipe', timeout: 180000 }); } catch { exploreOk = false; }
 results.push({ id: 'K02', what: 'bounded explorer: allowlist, ambiguity, origin lock, prod write block, budget, trace (explore-check.mjs)', ok: exploreOk });
+let finishOk = true; try { execFileSync(process.execPath, [path.join(here, 'finish-check.mjs')], { stdio: 'pipe' }); } catch { finishOk = false; }
+results.push({ id: 'K03', what: 'finish gate (Stop hook): report current, evidence, reasons, Phase 5b or explained skip, own loop bound (finish-check.mjs)', ok: finishOk });
 let reqOk = true; try { execFileSync(process.execPath, [path.join(here, 'requirements-check.mjs')], { stdio: 'pipe' }); } catch { reqOk = false; }
 results.push({ id: 'T00', what: 'requirements traceability: all unit checks pass (requirements-check.mjs)', ok: reqOk });
 
